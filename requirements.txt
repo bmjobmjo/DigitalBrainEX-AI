@@ -1,0 +1,16 @@
+# DigitalBrainEX AI - Python Requirements
+PyQt6>=6.6.0
+SQLAlchemy>=2.0.0
+pywin32>=306
+psutil>=5.9.0
+pycryptodome>=3.19.0
+cryptography>=41.0.0
+sounddevice>=0.4.6
+numpy>=1.24.0
+scipy>=1.11.0
+pillow>=10.0.0
+watchdog>=3.0.0
+google-genai>=0.1.0
+pyusb>=1.2.1
+pyserial>=3.5
+keyboard>=0.13.5

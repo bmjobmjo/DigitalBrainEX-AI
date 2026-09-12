@@ -1,0 +1,37 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# PyInstaller build artifacts & distribution binaries
+build/
+dist/
+*.spec
+*.manifest
+
+# Unit test / coverage caches
+.pytest_cache/
+.coverage
+
+# Environments
+.env
+.venv
+env/
+venv/
+
+# DigitalBrainEX Runtime storage folders
+logs/
+screenshots/
+recordings/
+temp_pad/
+
+# Large active runtime database (124MB exceeds GitHub 100MB limit) & WAL journals
+database/*.db3-wal
+database/*.db3-shm
+database/DevDiary-10-09-2026.db3
+
+# IDE / Editor
+.vscode/
+.idea/
+*.swp
+*.swo

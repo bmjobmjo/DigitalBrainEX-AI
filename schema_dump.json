@@ -1,0 +1,1144 @@
+{
+  "schemaVer": [
+    {
+      "cid": 0,
+      "name": "SchemaID",
+      "type": "INTEGER",
+      "notnull": 0,
+      "default": null,
+      "pk": 1
+    },
+    {
+      "cid": 1,
+      "name": "Version",
+      "type": "INTEGER",
+      "notnull": 0,
+      "default": null,
+      "pk": 0
+    }
+  ],
+  "trackme": [
+    {
+      "cid": 0,
+      "name": "ProjectID",
+      "type": "INTEGER",
+      "notnull": 0,
+      "default": null,
+      "pk": 0
+    },
+    {
+      "cid": 1,
+      "name": "ProjectName",
+      "type": "TEXT",
+      "notnull": 0,
+      "default": null,
+      "pk": 0
+    },
+    {
+      "cid": 2,
+      "name": "Application",
+      "type": "TEXT",
+      "notnull": 0,
+      "default": null,
+      "pk": 0
+    },
+    {
+      "cid": 3,
+      "name": "WindowTitle",
+      "type": "TEXT",
+      "notnull": 0,
+      "default": null,
+      "pk": 0
+    },
+    {
+      "cid": 4,
+      "name": "Seconds",
+      "type": "INTEGER",
+      "notnull": 0,
+      "default": null,
+      "pk": 0
+    },
+    {
+      "cid": 5,
+      "name": "DateTime",
+      "type": "TEXT",
+      "notnull": 0,
+      "default": null,
+      "pk": 0
+    },
+    {
+      "cid": 6,
+      "name": "TrackID",
+      "type": "INTEGER",
+      "notnull": 0,
+      "default": null,
+      "pk": 1
+    }
+  ],
+  "WatchFolder": [
+    {
+      "cid": 0,
+      "name": "FolderPath",
+      "type": "TEXT",
+      "notnull": 0,
+      "default": null,
+      "pk": 0
+    }
+  ],
+  "Goals": [
+    {
+      "cid": 0,
+      "name": "GoalID",
+      "type": "INTEGER",
+      "notnull": 0,
+      "default": null,
+      "pk": 0
+    },
+    {
+      "cid": 1,
+      "name": "Goal",
+      "type": "TEXT",
+      "notnull": 0,
+      "default": null,
+      "pk": 0
+    },
+    {
+      "cid": 2,
+      "name": "Desc",
+      "type": "TEXT",
+      "notnull": 0,
+      "default": null,
+      "pk": 0
+    },
+    {
+      "cid": 3,
+      "name": "ProjectName",
+      "type": "TEXT",
+      "notnull": 0,
+      "default": null,
+      "pk": 0
+    },
+    {
+      "cid": 4,
+      "name": "ProjectID",
+      "type": "INTEGER",
+      "notnull": 0,
+      "default": null,
+      "pk": 0
+    },
+    {
+      "cid": 5,
+      "name": "StartDate",
+      "type": "TEXT",
+      "notnull": 0,
+      "default": null,
+      "pk": 0
+    },
+    {
+      "cid": 6,
+      "name": "FinishDate",
+      "type": "TEXT",
+      "notnull": 0,
+      "default": null,
+      "pk": 0
+    },
+    {
+      "cid": 7,
+      "name": "ExtendedDate",
+      "type": "TEXT",
+      "notnull": 0,
+      "default": null,
+      "pk": 0
+    },
+    {
+      "cid": 8,
+      "name": "AchivedDate",
+      "type": "TEXT",
+      "notnull": 0,
+      "default": null,
+      "pk": 0
+    },
+    {
+      "cid": 9,
+      "name": "AssignedTo",
+      "type": "TEXT",
+      "notnull": 0,
+      "default": null,
+      "pk": 0
+    },
+    {
+      "cid": 10,
+      "name": "ScheduleFileURI",
+      "type": "TEXT",
+      "notnull": 0,
+      "default": null,
+      "pk": 0
+    }
+  ],
+  "documents": [
+    {
+      "cid": 0,
+      "name": "DocumentID",
+      "type": "INTEGER",
+      "notnull": 0,
+      "default": null,
+      "pk": 1
+    },
+    {
+      "cid": 1,
+      "name": "PojectID",
+      "type": "INTEGER",
+      "notnull": 0,
+      "default": null,
+      "pk": 0
+    },
+    {
+      "cid": 2,
+      "name": "ProjectName",
+      "type": "TEXT",
+      "notnull": 0,
+      "default": null,
+      "pk": 0
+    },
+    {
+      "cid": 3,
+      "name": "DocumentName",
+      "type": "TEXT",
+      "notnull": 0,
+      "default": null,
+      "pk": 0
+    },
+    {
+      "cid": 4,
+      "name": "DocumentURI",
+      "type": "TEXT",
+      "notnull": 0,
+      "default": null,
+      "pk": 0
+    },
+    {
+      "cid": 5,
+      "name": "Desc",
+      "type": "TEXT",
+      "notnull": 0,
+      "default": null,
+      "pk": 0
+    },
+    {
+      "cid": 6,
+      "name": "Notes",
+      "type": "TEXT",
+      "notnull": 0,
+      "default": null,
+      "pk": 0
+    },
+    {
+      "cid": 7,
+      "name": "Version",
+      "type": "TEXT",
+      "notnull": 0,
+      "default": null,
+      "pk": 0
+    },
+    {
+      "cid": 8,
+      "name": "Category",
+      "type": "TEXT",
+      "notnull": 0,
+      "default": null,
+      "pk": 0
+    },
+    {
+      "cid": 9,
+      "name": "AddedOn",
+      "type": "TEXT",
+      "notnull": 0,
+      "default": null,
+      "pk": 0
+    },
+    {
+      "cid": 10,
+      "name": "AddedOnInt",
+      "type": "INTEGER",
+      "notnull": 0,
+      "default": null,
+      "pk": 0
+    },
+    {
+      "cid": 11,
+      "name": "ModifiedDate",
+      "type": "INTEGER",
+      "notnull": 0,
+      "default": null,
+      "pk": 0
+    },
+    {
+      "cid": 12,
+      "name": "Type",
+      "type": "INTEGER",
+      "notnull": 0,
+      "default": "0",
+      "pk": 0
+    },
+    {
+      "cid": 13,
+      "name": "Language",
+      "type": "TEXT",
+      "notnull": 0,
+      "default": null,
+      "pk": 0
+    },
+    {
+      "cid": 14,
+      "name": "DocGUID",
+      "type": "TEXT",
+      "notnull": 0,
+      "default": null,
+      "pk": 0
+    },
+    {
+      "cid": 15,
+      "name": "DirtyFlag",
+      "type": "INTEGER",
+      "notnull": 0,
+      "default": "1",
+      "pk": 0
+    },
+    {
+      "cid": 16,
+      "name": "uploadedTime",
+      "type": "TEXT",
+      "notnull": 0,
+      "default": null,
+      "pk": 0
+    },
+    {
+      "cid": 17,
+      "name": "UploadRetry",
+      "type": "INTEGER",
+      "notnull": 0,
+      "default": "0",
+      "pk": 0
+    },
+    {
+      "cid": 18,
+      "name": "AddToLLM",
+      "type": "INTEGER",
+      "notnull": 0,
+      "default": "0",
+      "pk": 0
+    },
+    {
+      "cid": 19,
+      "name": "AudioStatus",
+      "type": "INTEGER",
+      "notnull": 0,
+      "default": "0",
+      "pk": 0
+    }
+  ],
+  "urls": [
+    {
+      "cid": 0,
+      "name": "UrlID",
+      "type": "INTEGER",
+      "notnull": 0,
+      "default": null,
+      "pk": 1
+    },
+    {
+      "cid": 1,
+      "name": "PojectID",
+      "type": "NUMERIC",
+      "notnull": 0,
+      "default": null,
+      "pk": 0
+    },
+    {
+      "cid": 2,
+      "name": "ProjectName",
+      "type": "TEXT",
+      "notnull": 0,
+      "default": null,
+      "pk": 0
+    },
+    {
+      "cid": 3,
+      "name": "Url",
+      "type": "TEXT",
+      "notnull": 0,
+      "default": null,
+      "pk": 0
+    },
+    {
+      "cid": 4,
+      "name": "UrlName",
+      "type": "TEXT",
+      "notnull": 0,
+      "default": null,
+      "pk": 0
+    },
+    {
+      "cid": 5,
+      "name": "Notes",
+      "type": "TEXT",
+      "notnull": 0,
+      "default": null,
+      "pk": 0
+    },
+    {
+      "cid": 6,
+      "name": "Category",
+      "type": "TEXT",
+      "notnull": 0,
+      "default": null,
+      "pk": 0
+    },
+    {
+      "cid": 7,
+      "name": "AddedOn",
+      "type": "TEXT",
+      "notnull": 0,
+      "default": null,
+      "pk": 0
+    },
+    {
+      "cid": 8,
+      "name": "AddedOnInt",
+      "type": "INTEGER",
+      "notnull": 0,
+      "default": null,
+      "pk": 0
+    },
+    {
+      "cid": 9,
+      "name": "UrlGUID",
+      "type": "TEXT",
+      "notnull": 0,
+      "default": null,
+      "pk": 0
+    },
+    {
+      "cid": 10,
+      "name": "DirtyFlag",
+      "type": "INTEGER",
+      "notnull": 0,
+      "default": "1",
+      "pk": 0
+    },
+    {
+      "cid": 11,
+      "name": "UploadedTime",
+      "type": "TEXT",
+      "notnull": 0,
+      "default": null,
+      "pk": 0
+    }
+  ],
+  "tasks": [
+    {
+      "cid": 0,
+      "name": "TaskID",
+      "type": "INTEGER",
+      "notnull": 0,
+      "default": null,
+      "pk": 1
+    },
+    {
+      "cid": 1,
+      "name": "TaskName",
+      "type": "TEXT",
+      "notnull": 0,
+      "default": null,
+      "pk": 0
+    },
+    {
+      "cid": 2,
+      "name": "TaskDesc",
+      "type": "TEXT",
+      "notnull": 0,
+      "default": null,
+      "pk": 0
+    },
+    {
+      "cid": 3,
+      "name": "Type",
+      "type": "TEXT",
+      "notnull": 0,
+      "default": "'T'",
+      "pk": 0
+    },
+    {
+      "cid": 4,
+      "name": "DueOn",
+      "type": "TEXT",
+      "notnull": 0,
+      "default": null,
+      "pk": 0
+    },
+    {
+      "cid": 5,
+      "name": "ProjectID",
+      "type": "TEXT",
+      "notnull": 0,
+      "default": null,
+      "pk": 0
+    },
+    {
+      "cid": 6,
+      "name": "ProjectName",
+      "type": "TEXT",
+      "notnull": 0,
+      "default": null,
+      "pk": 0
+    },
+    {
+      "cid": 7,
+      "name": "Status",
+      "type": "TEXT",
+      "notnull": 0,
+      "default": "'Active'",
+      "pk": 0
+    },
+    {
+      "cid": 8,
+      "name": "RemType",
+      "type": "TEXT",
+      "notnull": 0,
+      "default": "'No'",
+      "pk": 0
+    },
+    {
+      "cid": 9,
+      "name": "ReminderTimeHHMM",
+      "type": "TEXT",
+      "notnull": 0,
+      "default": "'00:00'",
+      "pk": 0
+    },
+    {
+      "cid": 10,
+      "name": "ReminderWMDay",
+      "type": "TEXT",
+      "notnull": 0,
+      "default": null,
+      "pk": 0
+    },
+    {
+      "cid": 11,
+      "name": "RepeatInterval",
+      "type": "INTEGER",
+      "notnull": 0,
+      "default": null,
+      "pk": 0
+    },
+    {
+      "cid": 12,
+      "name": "RepeatMonth",
+      "type": "TEXT",
+      "notnull": 0,
+      "default": null,
+      "pk": 0
+    },
+    {
+      "cid": 13,
+      "name": "AlertedOn",
+      "type": "TEXT",
+      "notnull": 0,
+      "default": "'2000-01-01'",
+      "pk": 0
+    },
+    {
+      "cid": 14,
+      "name": "ToDaysTask",
+      "type": "TEXT",
+      "notnull": 0,
+      "default": "'2000-01-01'",
+      "pk": 0
+    },
+    {
+      "cid": 15,
+      "name": "UserClosed",
+      "type": "TEXT",
+      "notnull": 0,
+      "default": "'NO'",
+      "pk": 0
+    },
+    {
+      "cid": 16,
+      "name": "EarlyRem",
+      "type": "TEXT",
+      "notnull": 0,
+      "default": "'NO'",
+      "pk": 0
+    },
+    {
+      "cid": 17,
+      "name": "Snooze",
+      "type": "INTEGER",
+      "notnull": 0,
+      "default": "0",
+      "pk": 0
+    },
+    {
+      "cid": 18,
+      "name": "SnoozedON",
+      "type": "TEXT",
+      "notnull": 0,
+      "default": "'2000-01-01'",
+      "pk": 0
+    },
+    {
+      "cid": 19,
+      "name": "Priority",
+      "type": "INTEGER",
+      "notnull": 0,
+      "default": "0",
+      "pk": 0
+    },
+    {
+      "cid": 20,
+      "name": "TriggeredTimeStamp",
+      "type": "INTEGER",
+      "notnull": 0,
+      "default": null,
+      "pk": 0
+    },
+    {
+      "cid": 21,
+      "name": "TodayOrder",
+      "type": "INTEGER",
+      "notnull": 0,
+      "default": null,
+      "pk": 0
+    },
+    {
+      "cid": 22,
+      "name": "TodayDue",
+      "type": "TEXT",
+      "notnull": 0,
+      "default": null,
+      "pk": 0
+    },
+    {
+      "cid": 23,
+      "name": "TaskGUID",
+      "type": "TEXT",
+      "notnull": 0,
+      "default": null,
+      "pk": 0
+    },
+    {
+      "cid": 24,
+      "name": "DirtyFlag",
+      "type": "INTEGER",
+      "notnull": 0,
+      "default": "1",
+      "pk": 0
+    },
+    {
+      "cid": 25,
+      "name": "UploadedTime",
+      "type": "TEXT",
+      "notnull": 0,
+      "default": null,
+      "pk": 0
+    },
+    {
+      "cid": 26,
+      "name": "UploadRetry",
+      "type": "INTEGER",
+      "notnull": 0,
+      "default": "0",
+      "pk": 0
+    }
+  ],
+  "secrets": [
+    {
+      "cid": 0,
+      "name": "SecretID",
+      "type": "INTEGER",
+      "notnull": 0,
+      "default": null,
+      "pk": 1
+    },
+    {
+      "cid": 1,
+      "name": "SecretName",
+      "type": "TEXT",
+      "notnull": 0,
+      "default": null,
+      "pk": 0
+    },
+    {
+      "cid": 2,
+      "name": "ApplicationURL",
+      "type": "TEXT",
+      "notnull": 0,
+      "default": null,
+      "pk": 0
+    },
+    {
+      "cid": 3,
+      "name": "Identity",
+      "type": "TEXT",
+      "notnull": 0,
+      "default": null,
+      "pk": 0
+    },
+    {
+      "cid": 4,
+      "name": "Password",
+      "type": "TEXT",
+      "notnull": 0,
+      "default": null,
+      "pk": 0
+    },
+    {
+      "cid": 5,
+      "name": "Desc",
+      "type": "TEXT",
+      "notnull": 0,
+      "default": null,
+      "pk": 0
+    },
+    {
+      "cid": 6,
+      "name": "Status",
+      "type": "TEXT",
+      "notnull": 0,
+      "default": null,
+      "pk": 0
+    },
+    {
+      "cid": 7,
+      "name": "UpdatedON",
+      "type": "TEXT",
+      "notnull": 0,
+      "default": null,
+      "pk": 0
+    },
+    {
+      "cid": 8,
+      "name": "ProjectID",
+      "type": "TEXT",
+      "notnull": 0,
+      "default": null,
+      "pk": 0
+    },
+    {
+      "cid": 9,
+      "name": "ProjectName",
+      "type": "TEXT",
+      "notnull": 0,
+      "default": null,
+      "pk": 0
+    },
+    {
+      "cid": 10,
+      "name": "FPPass",
+      "type": "TEXT",
+      "notnull": 0,
+      "default": null,
+      "pk": 0
+    },
+    {
+      "cid": 11,
+      "name": "FPIden",
+      "type": "TEXT",
+      "notnull": 0,
+      "default": null,
+      "pk": 0
+    },
+    {
+      "cid": 12,
+      "name": "FPKey",
+      "type": "TEXT",
+      "notnull": 0,
+      "default": null,
+      "pk": 0
+    },
+    {
+      "cid": 13,
+      "name": "SecGUID",
+      "type": "TEXT",
+      "notnull": 0,
+      "default": null,
+      "pk": 0
+    },
+    {
+      "cid": 14,
+      "name": "DirtyFlag",
+      "type": "INTEGER",
+      "notnull": 0,
+      "default": "1",
+      "pk": 0
+    },
+    {
+      "cid": 15,
+      "name": "UploadedTime",
+      "type": "TEXT",
+      "notnull": 0,
+      "default": null,
+      "pk": 0
+    },
+    {
+      "cid": 16,
+      "name": "UploadRetry",
+      "type": "INTEGER",
+      "notnull": 0,
+      "default": "0",
+      "pk": 0
+    }
+  ],
+  "projects": [
+    {
+      "cid": 0,
+      "name": "PojectID",
+      "type": "INTEGER",
+      "notnull": 0,
+      "default": null,
+      "pk": 1
+    },
+    {
+      "cid": 1,
+      "name": "ProjectName",
+      "type": "TEXT",
+      "notnull": 0,
+      "default": null,
+      "pk": 0
+    },
+    {
+      "cid": 2,
+      "name": "Desc",
+      "type": "TEXT",
+      "notnull": 0,
+      "default": null,
+      "pk": 0
+    },
+    {
+      "cid": 3,
+      "name": "Notes",
+      "type": "TEXT",
+      "notnull": 0,
+      "default": null,
+      "pk": 0
+    },
+    {
+      "cid": 4,
+      "name": "CreationDateInt",
+      "type": "INTEGER",
+      "notnull": 0,
+      "default": null,
+      "pk": 0
+    },
+    {
+      "cid": 5,
+      "name": "CreationDate",
+      "type": "INTEGER",
+      "notnull": 0,
+      "default": null,
+      "pk": 0
+    },
+    {
+      "cid": 6,
+      "name": "StartDate",
+      "type": "TEXT",
+      "notnull": 0,
+      "default": null,
+      "pk": 0
+    },
+    {
+      "cid": 7,
+      "name": "StartDateInt",
+      "type": "INT",
+      "notnull": 0,
+      "default": null,
+      "pk": 0
+    },
+    {
+      "cid": 8,
+      "name": "Status",
+      "type": "TEXT",
+      "notnull": 0,
+      "default": null,
+      "pk": 0
+    },
+    {
+      "cid": 9,
+      "name": "ProjGUID",
+      "type": "TEXT",
+      "notnull": 0,
+      "default": null,
+      "pk": 0
+    },
+    {
+      "cid": 10,
+      "name": "UploadedTime",
+      "type": "TEXT",
+      "notnull": 0,
+      "default": null,
+      "pk": 0
+    },
+    {
+      "cid": 11,
+      "name": "UploadRetry",
+      "type": "INTEGER",
+      "notnull": 0,
+      "default": "0",
+      "pk": 0
+    },
+    {
+      "cid": 12,
+      "name": "DirtyFlag",
+      "type": "INTEGER",
+      "notnull": 0,
+      "default": "1",
+      "pk": 0
+    }
+  ],
+  "Embeddings_backup": [
+    {
+      "cid": 0,
+      "name": "FileName",
+      "type": "TEXT",
+      "notnull": 0,
+      "default": null,
+      "pk": 0
+    },
+    {
+      "cid": 1,
+      "name": "FileFullPath",
+      "type": "TEXT",
+      "notnull": 0,
+      "default": null,
+      "pk": 0
+    },
+    {
+      "cid": 2,
+      "name": "ProjectName",
+      "type": "TEXT",
+      "notnull": 0,
+      "default": null,
+      "pk": 0
+    },
+    {
+      "cid": 3,
+      "name": "TextFilePath",
+      "type": "TEXT",
+      "notnull": 0,
+      "default": null,
+      "pk": 0
+    },
+    {
+      "cid": 4,
+      "name": "Embedding",
+      "type": "BLOB",
+      "notnull": 0,
+      "default": null,
+      "pk": 0
+    },
+    {
+      "cid": 5,
+      "name": "TextPointer",
+      "type": "TEXT",
+      "notnull": 0,
+      "default": null,
+      "pk": 0
+    },
+    {
+      "cid": 6,
+      "name": "Date",
+      "type": "TEXT",
+      "notnull": 0,
+      "default": null,
+      "pk": 0
+    },
+    {
+      "cid": 7,
+      "name": "ProjectID",
+      "type": "TEXT",
+      "notnull": 0,
+      "default": null,
+      "pk": 0
+    }
+  ],
+  "Embeddings": [
+    {
+      "cid": 0,
+      "name": "FileName",
+      "type": "TEXT",
+      "notnull": 0,
+      "default": null,
+      "pk": 0
+    },
+    {
+      "cid": 1,
+      "name": "FileFullPath",
+      "type": "TEXT",
+      "notnull": 0,
+      "default": null,
+      "pk": 0
+    },
+    {
+      "cid": 2,
+      "name": "ProjectName",
+      "type": "TEXT",
+      "notnull": 0,
+      "default": null,
+      "pk": 0
+    },
+    {
+      "cid": 3,
+      "name": "TextFilePath",
+      "type": "TEXT",
+      "notnull": 0,
+      "default": null,
+      "pk": 0
+    },
+    {
+      "cid": 4,
+      "name": "Embedding",
+      "type": "BLOB",
+      "notnull": 0,
+      "default": null,
+      "pk": 0
+    },
+    {
+      "cid": 5,
+      "name": "TextPointer",
+      "type": "TEXT",
+      "notnull": 0,
+      "default": null,
+      "pk": 0
+    },
+    {
+      "cid": 6,
+      "name": "Date",
+      "type": "TEXT",
+      "notnull": 0,
+      "default": null,
+      "pk": 0
+    },
+    {
+      "cid": 7,
+      "name": "ProjectID",
+      "type": "TEXT",
+      "notnull": 0,
+      "default": null,
+      "pk": 0
+    },
+    {
+      "cid": 8,
+      "name": "DocumentID",
+      "type": "INTEGER",
+      "notnull": 0,
+      "default": null,
+      "pk": 0
+    }
+  ],
+  "TrackTempFileToDocConv": [
+    {
+      "cid": 0,
+      "name": "DocumentID",
+      "type": "INTEGER",
+      "notnull": 0,
+      "default": null,
+      "pk": 1
+    },
+    {
+      "cid": 1,
+      "name": "RetryCount",
+      "type": "INTEGER",
+      "notnull": 0,
+      "default": "0",
+      "pk": 0
+    },
+    {
+      "cid": 2,
+      "name": "FailReason",
+      "type": "TEXT",
+      "notnull": 0,
+      "default": null,
+      "pk": 0
+    }
+  ],
+  "ClipboardHistory": [
+    {
+      "cid": 0,
+      "name": "ID",
+      "type": "INTEGER",
+      "notnull": 0,
+      "default": null,
+      "pk": 1
+    },
+    {
+      "cid": 1,
+      "name": "ContentType",
+      "type": "TEXT",
+      "notnull": 0,
+      "default": null,
+      "pk": 0
+    },
+    {
+      "cid": 2,
+      "name": "TextContent",
+      "type": "TEXT",
+      "notnull": 0,
+      "default": null,
+      "pk": 0
+    },
+    {
+      "cid": 3,
+      "name": "ImagePath",
+      "type": "TEXT",
+      "notnull": 0,
+      "default": null,
+      "pk": 0
+    },
+    {
+      "cid": 4,
+      "name": "AddedOn",
+      "type": "TEXT",
+      "notnull": 0,
+      "default": null,
+      "pk": 0
+    }
+  ],
+  "sqlite_sequence": [
+    {
+      "cid": 0,
+      "name": "name",
+      "type": "",
+      "notnull": 0,
+      "default": null,
+      "pk": 0
+    },
+    {
+      "cid": 1,
+      "name": "seq",
+      "type": "",
+      "notnull": 0,
+      "default": null,
+      "pk": 0
+    }
+  ],
+  "documentsCatogory": [
+    {
+      "cid": 0,
+      "name": "CatgoryID",
+      "type": "INTEGER",
+      "notnull": 0,
+      "default": null,
+      "pk": 1
+    },
+    {
+      "cid": 1,
+      "name": "CatogoryName",
+      "type": "TEXT",
+      "notnull": 0,
+      "default": null,
+      "pk": 0
+    }
+  ]
+}
