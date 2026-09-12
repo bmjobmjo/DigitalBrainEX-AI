@@ -25,6 +25,8 @@ from PyQt6.QtWidgets import (
     QLineEdit,
     QPushButton,
     QCheckBox,
+    QRadioButton,
+    QWidget,
     QProgressBar,
     QFileDialog,
     QMessageBox,
@@ -131,14 +133,18 @@ class InstallWorker(QThread):
         source_dir: str,
         dest_dir: str,
         doc_folder: str,
-        auto_startup: bool,
-        desktop_shortcut: bool,
-        start_menu_shortcut: bool,
+        db_mode: str = "new",
+        existing_db_path: str = "",
+        auto_startup: bool = True,
+        desktop_shortcut: bool = True,
+        start_menu_shortcut: bool = True,
     ):
         super().__init__()
         self.source_dir = source_dir
         self.dest_dir = dest_dir
         self.doc_folder = doc_folder
+        self.db_mode = db_mode
+        self.existing_db_path = existing_db_path
         self.auto_startup = auto_startup
         self.desktop_shortcut = desktop_shortcut
         self.start_menu_shortcut = start_menu_shortcut
@@ -188,17 +194,9 @@ class InstallWorker(QThread):
                         except Exception:
                             pass
 
-                # Copy database if not already exists (preserve user data)
+                # Configure database (new blank vs existing)
                 dst_db_dir = os.path.join(self.dest_dir, "database")
-                src_db_dir = os.path.join(self.source_dir, "database")
-                os.makedirs(dst_db_dir, exist_ok=True)
-                if os.path.exists(src_db_dir):
-                    self.progress_changed.emit(50, "Configuring database storage...")
-                    for f in os.listdir(src_db_dir):
-                        src_file = os.path.join(src_db_dir, f)
-                        dst_file = os.path.join(dst_db_dir, f)
-                        if not os.path.exists(dst_file) and os.path.isfile(src_file):
-                            shutil.copy2(src_file, dst_file)
+                self._setup_database(dst_db_dir)
 
                 # Create default runtime directories
                 for sub in ["logs", "screenshots", "recordings", "temp_pad"]:
@@ -281,17 +279,9 @@ class InstallWorker(QThread):
                     shutil.copytree(src_path, dst_path)
                 current += 25
 
-            # Copy database if not already exists (preserve user data)
+            # Configure database (new blank vs existing)
             dst_db_dir = os.path.join(self.dest_dir, "database")
-            src_db_dir = os.path.join(self.source_dir, "database")
-            os.makedirs(dst_db_dir, exist_ok=True)
-            if os.path.exists(src_db_dir):
-                self.progress_changed.emit(65, "Configuring database storage...")
-                for f in os.listdir(src_db_dir):
-                    src_file = os.path.join(src_db_dir, f)
-                    dst_file = os.path.join(dst_db_dir, f)
-                    if not os.path.exists(dst_file) and os.path.isfile(src_file):
-                        shutil.copy2(src_file, dst_file)
+            self._setup_database(dst_db_dir)
 
             # Create default runtime directories
             for sub in ["logs", "screenshots", "recordings", "temp_pad"]:
@@ -378,6 +368,182 @@ class InstallWorker(QThread):
 
         except Exception as e:
             self.finished_error.emit(str(e))
+
+    def _setup_database(self, dst_db_dir: str):
+        """Configures the target database based on user selection (new blank vs existing)."""
+        os.makedirs(dst_db_dir, exist_ok=True)
+        target_db = os.path.join(dst_db_dir, "DevDiary-10-09-2026.db3")
+
+        # 1. Existing database specified by user
+        if self.db_mode == "existing" and self.existing_db_path and os.path.exists(self.existing_db_path):
+            self.progress_changed.emit(55, "Importing existing database...")
+            try:
+                shutil.copy2(self.existing_db_path, target_db)
+                return
+            except Exception as e:
+                print(f"Warning: could not copy existing database: {e}")
+
+        # 2. "New" blank database selected
+        self.progress_changed.emit(55, "Initializing clean blank database...")
+        template_src = None
+        candidates = [
+            os.path.join(self.source_dir, "database", "DevDiary_template.db3"),
+            os.path.join(self.source_dir, "DevDiary_template.db3"),
+            os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "database", "DevDiary_template.db3")),
+        ]
+        for c in candidates:
+            if os.path.exists(c):
+                template_src = c
+                break
+
+        if template_src:
+            if not os.path.exists(target_db):
+                shutil.copy2(template_src, target_db)
+            # Copy template to destination as DevDiary_template.db3 as well
+            shutil.copy2(template_src, os.path.join(dst_db_dir, "DevDiary_template.db3"))
+        else:
+            self._create_blank_database(target_db)
+
+    def _create_blank_database(self, target_db: str):
+        """Creates a fresh, valid SQLite database with standard tables, default project, and categories."""
+        import sqlite3
+        conn = sqlite3.connect(target_db)
+        cur = conn.cursor()
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS projects (
+                PojectID INTEGER PRIMARY KEY AUTOINCREMENT,
+                ProjectName TEXT,
+                Desc TEXT,
+                Notes TEXT,
+                CreationDateInt INTEGER,
+                CreationDate TEXT,
+                StartDate TEXT,
+                StartDateInt INTEGER,
+                Status TEXT DEFAULT 'Active',
+                ProjGUID TEXT,
+                UploadedTime TEXT,
+                UploadRetry INTEGER DEFAULT 0,
+                DirtyFlag INTEGER DEFAULT 1
+            )
+        """)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS documentsCatogory (
+                CatgoryID INTEGER PRIMARY KEY AUTOINCREMENT,
+                CatogoryName TEXT
+            )
+        """)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS documents (
+                DocumentID INTEGER PRIMARY KEY AUTOINCREMENT,
+                PojectID INTEGER,
+                DocumentName TEXT,
+                DocumentURI TEXT,
+                Desc TEXT,
+                Notes TEXT,
+                Type INTEGER DEFAULT 0,
+                UploadedTime TEXT,
+                UploadRetry INTEGER DEFAULT 0,
+                DirtyFlag INTEGER DEFAULT 1,
+                ProjectName TEXT,
+                Category TEXT,
+                CreationDate TEXT
+            )
+        """)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS tasks (
+                TaskID INTEGER PRIMARY KEY AUTOINCREMENT,
+                PojectID INTEGER,
+                TaskName TEXT,
+                Desc TEXT,
+                Notes TEXT,
+                Priority INTEGER DEFAULT 1,
+                Status TEXT DEFAULT 'Active',
+                DueDate TEXT,
+                RepeatInterval INTEGER DEFAULT 0,
+                UploadedTime TEXT,
+                UploadRetry INTEGER DEFAULT 0,
+                DirtyFlag INTEGER DEFAULT 1,
+                ProjectName TEXT
+            )
+        """)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS urls (
+                URLID INTEGER PRIMARY KEY AUTOINCREMENT,
+                PojectID INTEGER,
+                URL TEXT,
+                Desc TEXT,
+                Notes TEXT,
+                Category TEXT,
+                UploadedTime TEXT,
+                UploadRetry INTEGER DEFAULT 0,
+                DirtyFlag INTEGER DEFAULT 1,
+                ProjectName TEXT
+            )
+        """)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS secrets (
+                SecretID INTEGER PRIMARY KEY AUTOINCREMENT,
+                PojectID INTEGER,
+                SecretName TEXT,
+                SecretUser TEXT,
+                SecretPassword TEXT,
+                Notes TEXT,
+                SecretURL TEXT,
+                UploadedTime TEXT,
+                UploadRetry INTEGER DEFAULT 0,
+                DirtyFlag INTEGER DEFAULT 1,
+                ProjectName TEXT
+            )
+        """)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS trackme (
+                ProjectID INTEGER,
+                ProjectName TEXT,
+                Application TEXT,
+                WindowTitle TEXT,
+                Seconds INTEGER,
+                Date TEXT,
+                UploadedTime TEXT,
+                UploadRetry INTEGER DEFAULT 0,
+                DirtyFlag INTEGER DEFAULT 1
+            )
+        """)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS WatchFolder (
+                WatchID INTEGER PRIMARY KEY AUTOINCREMENT,
+                FolderPath TEXT,
+                LastScanTime TEXT
+            )
+        """)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS Goals (
+                GoalID INTEGER PRIMARY KEY AUTOINCREMENT,
+                PojectID INTEGER,
+                GoalName TEXT,
+                TargetDate TEXT,
+                Status TEXT
+            )
+        """)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS schemaVer (
+                SchemaID INTEGER PRIMARY KEY,
+                Version INTEGER
+            )
+        """)
+        cur.execute("""
+            INSERT OR IGNORE INTO projects (PojectID, ProjectName, Desc, Notes, Status, CreationDate, ProjGUID)
+            VALUES (1, 'General', 'To manage common and general things', 'Anything that is not fall in to any special catogory', 'Active', '12/20/2021', '0975f4f2-89d7-4ca5-9e4d-1a767318b1cc')
+        """)
+        categories = [
+            (1, 'General'), (2, 'Requirements'), (3, 'Design'), (4, 'TechDoc'),
+            (5, 'Minutes'), (6, 'Plan'), (7, 'Schedule'), (8, 'Estimate'),
+            (9, 'P&L'), (10, 'TestCases'), (11, 'IssueList'), (12, 'Accounts'),
+            (13, 'HR'), (14, 'Resumes')
+        ]
+        cur.executemany("INSERT OR IGNORE INTO documentsCatogory (CatgoryID, CatogoryName) VALUES (?, ?)", categories)
+        cur.execute("INSERT OR IGNORE INTO schemaVer (SchemaID, Version) VALUES (1, 1)")
+        conn.commit()
+        conn.close()
 
     def _register_in_add_remove(self, pythonw_exe: str, icon_path: str, uninstall_bat: str):
         """Registers DigitalBrainEX in Windows Add/Remove Programs registry."""
@@ -498,6 +664,104 @@ class StorageDirectoryPage(QWizardPage):
             self.edit_doc_folder.setText(folder)
 
 
+class DatabaseConfigPage(QWizardPage):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setTitle("Database Configuration")
+        self.setSubTitle("Choose how your DigitalBrainEX AI database should be initialized.")
+
+        layout = QVBoxLayout(self)
+        layout.setSpacing(14)
+
+        lbl_info = QLabel(
+            "DigitalBrainEX AI stores tasks, projects, notes, documents, and credentials in a local SQLite database.\n"
+            "Select whether you are setting up a fresh installation or connecting an existing database:"
+        )
+        lbl_info.setWordWrap(True)
+        lbl_info.setStyleSheet("font-size: 12px; color: #1e293b;")
+        layout.addWidget(lbl_info)
+
+        # Radio 1: New Blank Database
+        self.rb_new = QRadioButton("Create a new blank database (Default / First-time user)")
+        self.rb_new.setChecked(True)
+        self.rb_new.setStyleSheet("font-weight: bold; font-size: 13px; color: #0f172a;")
+        layout.addWidget(self.rb_new)
+
+        lbl_new_sub = QLabel(
+            "Creates a clean blank database with the default 'General' project and 14 standard categories, "
+            "ready for immediate use without needing any prior database."
+        )
+        lbl_new_sub.setWordWrap(True)
+        lbl_new_sub.setStyleSheet("color: #64748b; font-size: 11px; margin-left: 24px;")
+        layout.addWidget(lbl_new_sub)
+
+        layout.addSpacing(6)
+
+        # Radio 2: Existing Database
+        self.rb_existing = QRadioButton("Use an existing database file (.db3)")
+        self.rb_existing.setStyleSheet("font-weight: bold; font-size: 13px; color: #0f172a;")
+        layout.addWidget(self.rb_existing)
+
+        lbl_existing_sub = QLabel(
+            "Select an existing DevDiary.db3 database to preserve your historical tasks, documents, notes, and credentials."
+        )
+        lbl_existing_sub.setWordWrap(True)
+        lbl_existing_sub.setStyleSheet("color: #64748b; font-size: 11px; margin-left: 24px;")
+        layout.addWidget(lbl_existing_sub)
+
+        # File picker for existing database
+        path_container = QWidget()
+        path_layout = QHBoxLayout(path_container)
+        path_layout.setContentsMargins(24, 0, 0, 0)
+
+        self.edit_existing_db = QLineEdit()
+        self.edit_existing_db.setPlaceholderText("Select existing DevDiary.db3 database file...")
+        self.edit_existing_db.setEnabled(False)
+        path_layout.addWidget(self.edit_existing_db)
+
+        self.btn_browse = QPushButton("Browse...")
+        self.btn_browse.setEnabled(False)
+        self.btn_browse.clicked.connect(self._browse_db)
+        path_layout.addWidget(self.btn_browse)
+
+        layout.addWidget(path_container)
+
+        self.rb_new.toggled.connect(self._on_radio_toggled)
+        self.rb_existing.toggled.connect(self._on_radio_toggled)
+
+        layout.addStretch()
+
+        self.registerField("db_is_new", self.rb_new)
+        self.registerField("existing_db_path", self.edit_existing_db)
+
+    def _on_radio_toggled(self):
+        is_existing = self.rb_existing.isChecked()
+        self.edit_existing_db.setEnabled(is_existing)
+        self.btn_browse.setEnabled(is_existing)
+
+    def _browse_db(self):
+        fpath, _ = QFileDialog.getOpenFileName(
+            self,
+            "Select Existing Database",
+            "",
+            "SQLite Database (*.db3 *.db *.sqlite *.sqlite3);;All Files (*.*)",
+        )
+        if fpath:
+            self.edit_existing_db.setText(fpath)
+
+    def validatePage(self) -> bool:
+        if self.rb_existing.isChecked():
+            path = self.edit_existing_db.text().strip()
+            if not path or not os.path.exists(path):
+                QMessageBox.warning(
+                    self,
+                    "Invalid Database File",
+                    "Please select a valid existing database file (.db3) or choose 'Create a new blank database'.",
+                )
+                return False
+        return True
+
+
 class OptionsPage(QWizardPage):
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -559,6 +823,9 @@ class ProgressPage(QWizardPage):
             source_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
         dest_dir = self.field("install_dir")
         doc_folder = self.field("doc_folder")
+        is_new_db = self.field("db_is_new")
+        db_mode = "new" if is_new_db else "existing"
+        existing_db = self.field("existing_db_path") or ""
         auto_startup = self.field("auto_startup")
         desktop_sc = self.field("desktop_shortcut")
         start_menu_sc = self.field("start_menu_shortcut")
@@ -570,6 +837,8 @@ class ProgressPage(QWizardPage):
             source_dir=source_dir,
             dest_dir=dest_dir,
             doc_folder=doc_folder,
+            db_mode=db_mode,
+            existing_db_path=existing_db,
             auto_startup=auto_startup,
             desktop_shortcut=desktop_sc,
             start_menu_shortcut=start_menu_sc,
@@ -648,6 +917,7 @@ class SetupWizard(QWizard):
         self.addPage(WelcomePage(self))
         self.addPage(DirectoryPage(self))
         self.addPage(StorageDirectoryPage(self))
+        self.addPage(DatabaseConfigPage(self))
         self.addPage(OptionsPage(self))
         self.addPage(ProgressPage(self))
         self.addPage(FinishedPage(self))
@@ -659,7 +929,13 @@ class SetupWizard(QWizard):
             apply_native_window_icon(int(self.winId()), self._icon_path)
 
 
-def run_direct_install(install_dir: Optional[str] = None, doc_folder: Optional[str] = None, auto_startup: bool = True) -> bool:
+def run_direct_install(
+    install_dir: Optional[str] = None,
+    doc_folder: Optional[str] = None,
+    db_mode: str = "new",
+    existing_db_path: str = "",
+    auto_startup: bool = True
+) -> bool:
     """Executes installation directly and synchronously."""
     from src.utils.config_manager import get_doc_folder
     if getattr(sys, "frozen", False):
@@ -674,12 +950,15 @@ def run_direct_install(install_dir: Optional[str] = None, doc_folder: Optional[s
     print(f"  Source:       {source_dir}")
     print(f"  Destination:  {target_dest}")
     print(f"  DocFolder:    {target_doc}")
+    print(f"  DB Mode:      {db_mode}")
     print(f"  Auto-Startup: {auto_startup}")
 
     worker = InstallWorker(
         source_dir=source_dir,
         dest_dir=target_dest,
         doc_folder=target_doc,
+        db_mode=db_mode,
+        existing_db_path=existing_db_path,
         auto_startup=auto_startup,
         desktop_shortcut=True,
         start_menu_shortcut=True,

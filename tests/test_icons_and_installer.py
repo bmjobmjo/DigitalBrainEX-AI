@@ -54,12 +54,16 @@ class TestIconsAndInstaller(unittest.TestCase):
     def test_setup_wizard_instantiation(self):
         wizard = SetupWizard()
         self.assertIsNotNone(wizard)
-        self.assertEqual(len(wizard.pageIds()), 6)
+        self.assertEqual(len(wizard.pageIds()), 7)
         # Verify StorageDirectoryPage is included
-        from src.installer.setup_gui import StorageDirectoryPage
+        from src.installer.setup_gui import StorageDirectoryPage, DatabaseConfigPage
         storage_page = wizard.page(wizard.pageIds()[2])
         self.assertIsInstance(storage_page, StorageDirectoryPage)
         self.assertTrue(len(storage_page.edit_doc_folder.text()) > 0)
+        # Verify DatabaseConfigPage is included
+        db_page = wizard.page(wizard.pageIds()[3])
+        self.assertIsInstance(db_page, DatabaseConfigPage)
+        self.assertTrue(db_page.rb_new.isChecked())
 
     def test_find_system_pythonw(self):
         from src.installer.setup_gui import find_system_pythonw
