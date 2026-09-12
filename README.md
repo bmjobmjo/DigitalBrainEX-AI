@@ -6,6 +6,17 @@ This application is the complete modern re-architecture of the legacy C# Digital
 
 ---
 
+## 📥 Quick Download (Windows 64-bit)
+
+| Package | Size | Description | Download |
+| :--- | :--- | :--- | :--- |
+| **Windows Setup Wizard** *(Recommended)* | ~107 MB | Complete installer with Desktop / Start Menu shortcuts, Auto-Startup, storage configuration, and automatic blank database initialization for first-time users. | [**Download `DigitalBrainEX_Setup.exe`**](https://github.com/bmjobmjo/DigitalBrainEX-AI/releases/latest/download/DigitalBrainEX_Setup.exe) |
+| **Standalone Portable Binary** | ~72 MB | Single-file portable executable. Run directly anywhere without installation. | [**Download `DigitalBrainEX.exe`**](https://github.com/bmjobmjo/DigitalBrainEX-AI/releases/latest/download/DigitalBrainEX.exe) |
+
+> 💡 **First-Time Users**: If you are installing DigitalBrainEX for the first time without an existing database, select **"Create a new blank database"** in the Setup Wizard to automatically provision a ready-to-use database with default project and categories.
+
+---
+
 ## Key Features & Highlights
 
 1. **100% Legacy SQLite Database Compatibility**
