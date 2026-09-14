@@ -190,6 +190,8 @@ class MainWindow(QMainWindow):
                 active_widget.load_data()
             if hasattr(active_widget, "refresh_configuration_state"):
                 active_widget.refresh_configuration_state()
+            if hasattr(active_widget, "on_enter_screen"):
+                active_widget.on_enter_screen()
 
 
 

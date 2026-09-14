@@ -155,6 +155,37 @@ class WellnessReminderManager(QObject):
             self._sedentary_active_seconds = 0.0
         self.alert_cleared.emit(alert_type)
 
+    def get_reminder_status(self) -> Dict[str, Any]:
+        """Returns comprehensive status of both reminders including next trigger time."""
+        import datetime
+        now = datetime.datetime.now()
+
+        water_target_sec = self._water_interval_min * 60
+        water_rem_sec = max(0.0, water_target_sec - self._water_active_seconds)
+        water_next_dt = now + datetime.timedelta(seconds=water_rem_sec)
+
+        sed_target_sec = self._sedentary_interval_min * 60
+        sed_rem_sec = max(0.0, sed_target_sec - self._sedentary_active_seconds)
+        sed_next_dt = now + datetime.timedelta(seconds=sed_rem_sec)
+
+        return {
+            "is_active": self._is_active,
+            "is_running": self._is_running,
+            "idle_seconds": get_idle_seconds(),
+            "water_enabled": self._water_enabled,
+            "water_interval_min": self._water_interval_min,
+            "water_active_seconds": self._water_active_seconds,
+            "water_remaining_seconds": water_rem_sec,
+            "water_next_time": water_next_dt.strftime("%I:%M %p"),
+            "water_next_datetime": water_next_dt,
+            "sedentary_enabled": self._sedentary_enabled,
+            "sedentary_interval_min": self._sedentary_interval_min,
+            "sedentary_active_seconds": self._sedentary_active_seconds,
+            "sedentary_remaining_seconds": sed_rem_sec,
+            "sedentary_next_time": sed_next_dt.strftime("%I:%M %p"),
+            "sedentary_next_datetime": sed_next_dt,
+        }
+
     def _on_tick(self):
         """1-second timer tick. Evaluates lock state, idle time, and active seconds."""
         # 1. Check if Windows session is locked or logged out

@@ -170,6 +170,36 @@ class TestWellnessReminders(unittest.TestCase):
         tray.stop_blinking()
         self.assertFalse(tray._is_blinking)
 
+    def test_get_reminder_status(self):
+        """Tests calculation of next trigger times and reminder status."""
+        manager = WellnessReminderManager()
+        manager._water_enabled = True
+        manager._water_interval_min = 30
+        manager._water_active_seconds = 600.0  # 10 minutes elapsed, 20 minutes left
+        manager._sedentary_enabled = True
+        manager._sedentary_interval_min = 60
+        manager._sedentary_active_seconds = 1800.0  # 30 minutes elapsed, 30 minutes left
+
+        status = manager.get_reminder_status()
+        self.assertTrue(status["water_enabled"])
+        self.assertEqual(status["water_remaining_seconds"], 1200.0)
+        self.assertIsNotNone(status["water_next_time"])
+        self.assertTrue(status["sedentary_enabled"])
+        self.assertEqual(status["sedentary_remaining_seconds"], 1800.0)
+        self.assertIsNotNone(status["sedentary_next_time"])
+
+    def test_settings_view_next_reminder_times(self):
+        """Tests that SettingsView initializes and updates next reminder times when entering the screen."""
+        from src.ui.views.settings_view import SettingsView
+        view = SettingsView()
+        view.on_enter_screen()
+        self.assertTrue(len(view.lbl_water_next_time.text()) > 0)
+        self.assertTrue(len(view.lbl_sedentary_next_time.text()) > 0)
+        # Test toggle disable
+        view.chk_water_reminder.setChecked(False)
+        self.assertEqual(view.lbl_water_next_time.text(), "Disabled")
+
 
 if __name__ == "__main__":
     unittest.main()
+

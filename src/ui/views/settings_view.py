@@ -24,7 +24,7 @@ from PyQt6.QtWidgets import (
     QFrame,
     QSizePolicy,
 )
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QTimer
 from src.config import DB_PATH, TEMP_PAD_DIR, SCREENSHOTS_DIR, APP_VERSION, DEFAULT_THEME
 from src.ui.theme import apply_theme
 from src.core.repository import DataRepository
@@ -39,8 +39,12 @@ class SettingsView(QWidget):
         super().__init__(parent)
         self.setObjectName("ViewContentWidget")
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        self._refresh_timer = QTimer(self)
+        self._refresh_timer.setInterval(1000)
+        self._refresh_timer.timeout.connect(self.update_reminder_next_times)
         self._init_ui()
         self.load_settings()
+        self.update_reminder_next_times()
 
     def _wrap_scrollable(self, content_widget: QWidget) -> QScrollArea:
         scroll = QScrollArea()
@@ -72,6 +76,7 @@ class SettingsView(QWidget):
         self.tabs.addTab(self._wrap_scrollable(self._create_paths_tab()), "Paths & Storage")
         self.tabs.addTab(self._wrap_scrollable(self._create_about_tab()), "About & Diagnostics")
 
+        self.tabs.currentChanged.connect(self._on_tab_changed)
         main_layout.addWidget(self.tabs)
 
         # Bottom save button
@@ -84,6 +89,10 @@ class SettingsView(QWidget):
         btn_layout.addWidget(self.btn_save_all)
 
         main_layout.addLayout(btn_layout)
+
+    def _on_tab_changed(self, index: int):
+        if index == 1:  # Wellness & Health
+            self.update_reminder_next_times()
 
     def _create_general_tab(self) -> QWidget:
         widget = QWidget()
@@ -151,6 +160,7 @@ class SettingsView(QWidget):
 
         self.chk_water_reminder = QCheckBox("Enable Drink Water Reminder")
         self.chk_water_reminder.setChecked(True)
+        self.chk_water_reminder.toggled.connect(self.update_reminder_next_times)
         water_layout.addWidget(self.chk_water_reminder)
 
         w_form = QFormLayout()
@@ -159,7 +169,13 @@ class SettingsView(QWidget):
         self.spin_water_interval.setValue(45)
         self.spin_water_interval.setSuffix(" minutes")
         self.spin_water_interval.setFixedWidth(120)
+        self.spin_water_interval.valueChanged.connect(self.update_reminder_next_times)
         w_form.addRow("Reminder Interval:", self.spin_water_interval)
+
+        self.lbl_water_next_time = QLabel("--:-- --")
+        self.lbl_water_next_time.setStyleSheet("font-weight: 600; color: #0284c7;")
+        w_form.addRow("Next Reminder Time:", self.lbl_water_next_time)
+
         water_layout.addLayout(w_form)
         timers_row.addWidget(grp_water)
 
@@ -172,6 +188,7 @@ class SettingsView(QWidget):
 
         self.chk_sedentary_reminder = QCheckBox("Enable Sedentary Reminder")
         self.chk_sedentary_reminder.setChecked(True)
+        self.chk_sedentary_reminder.toggled.connect(self.update_reminder_next_times)
         sed_layout.addWidget(self.chk_sedentary_reminder)
 
         s_form = QFormLayout()
@@ -180,7 +197,13 @@ class SettingsView(QWidget):
         self.spin_sedentary_interval.setValue(60)
         self.spin_sedentary_interval.setSuffix(" minutes")
         self.spin_sedentary_interval.setFixedWidth(120)
+        self.spin_sedentary_interval.valueChanged.connect(self.update_reminder_next_times)
         s_form.addRow("Reminder Interval:", self.spin_sedentary_interval)
+
+        self.lbl_sedentary_next_time = QLabel("--:-- --")
+        self.lbl_sedentary_next_time.setStyleSheet("font-weight: 600; color: #0284c7;")
+        s_form.addRow("Next Reminder Time:", self.lbl_sedentary_next_time)
+
         sed_layout.addLayout(s_form)
         timers_row.addWidget(grp_sed)
 
@@ -711,4 +734,89 @@ class SettingsView(QWidget):
         except Exception as e:
             logger.error(f"Error saving OpenRouter/Embedding settings: {e}")
 
+        # Update displayed next reminder times immediately
+        self.update_reminder_next_times()
+
         QMessageBox.information(self, "Settings Saved", "Application settings updated successfully!")
+
+    def on_enter_screen(self):
+        """Called whenever the user enters the Settings screen."""
+        self.load_settings()
+        self.update_reminder_next_times()
+        if hasattr(self, "_refresh_timer") and not self._refresh_timer.isActive():
+            self._refresh_timer.start()
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        self.on_enter_screen()
+
+    def hideEvent(self, event):
+        super().hideEvent(event)
+        if hasattr(self, "_refresh_timer") and self._refresh_timer.isActive():
+            self._refresh_timer.stop()
+
+    def update_reminder_next_times(self):
+        """Calculates and updates next scheduled reminder times for water and sedentary reminders."""
+        import datetime
+        now = datetime.datetime.now()
+
+        from src.background.wellness_reminders import wellness_engine, get_idle_seconds
+
+        idle_threshold = self.spin_idle_threshold.value() if hasattr(self, "spin_idle_threshold") else 60
+        idle_sec = get_idle_seconds()
+        is_idle = idle_sec >= idle_threshold
+
+        # 1. Water Reminder
+        if hasattr(self, "chk_water_reminder") and hasattr(self, "lbl_water_next_time"):
+            if not self.chk_water_reminder.isChecked():
+                self.lbl_water_next_time.setText("Disabled")
+                self.lbl_water_next_time.setStyleSheet("color: #94a3b8; font-style: italic;")
+            else:
+                interval_min = self.spin_water_interval.value()
+                target_sec = interval_min * 60
+                active_sec = getattr(wellness_engine, "_water_active_seconds", 0.0)
+                rem_sec = max(0.0, target_sec - active_sec)
+                next_dt = now + datetime.timedelta(seconds=rem_sec)
+
+                time_str = next_dt.strftime("%I:%M %p")
+                rem_m = int(rem_sec // 60)
+                rem_s = int(rem_sec % 60)
+
+                if rem_sec <= 0:
+                    countdown_str = "Due now"
+                elif rem_m > 0:
+                    countdown_str = f"in {rem_m}m {rem_s}s"
+                else:
+                    countdown_str = f"in {rem_s}s"
+
+                status_note = " [Paused - Idle]" if is_idle else ""
+                self.lbl_water_next_time.setText(f"{time_str} ({countdown_str}{status_note})")
+                self.lbl_water_next_time.setStyleSheet("font-weight: 600; color: #0284c7;")
+
+        # 2. Sedentary Reminder
+        if hasattr(self, "chk_sedentary_reminder") and hasattr(self, "lbl_sedentary_next_time"):
+            if not self.chk_sedentary_reminder.isChecked():
+                self.lbl_sedentary_next_time.setText("Disabled")
+                self.lbl_sedentary_next_time.setStyleSheet("color: #94a3b8; font-style: italic;")
+            else:
+                interval_min = self.spin_sedentary_interval.value()
+                target_sec = interval_min * 60
+                active_sec = getattr(wellness_engine, "_sedentary_active_seconds", 0.0)
+                rem_sec = max(0.0, target_sec - active_sec)
+                next_dt = now + datetime.timedelta(seconds=rem_sec)
+
+                time_str = next_dt.strftime("%I:%M %p")
+                rem_m = int(rem_sec // 60)
+                rem_s = int(rem_sec % 60)
+
+                if rem_sec <= 0:
+                    countdown_str = "Due now"
+                elif rem_m > 0:
+                    countdown_str = f"in {rem_m}m {rem_s}s"
+                else:
+                    countdown_str = f"in {rem_s}s"
+
+                status_note = " [Paused - Idle]" if is_idle else ""
+                self.lbl_sedentary_next_time.setText(f"{time_str} ({countdown_str}{status_note})")
+                self.lbl_sedentary_next_time.setStyleSheet("font-weight: 600; color: #0284c7;")
+
