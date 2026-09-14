@@ -29,6 +29,7 @@ temp_pad/
 database/*.db3-wal
 database/*.db3-shm
 database/DevDiary-10-09-2026.db3
+database/*Backup*.db3
 
 # IDE / Editor
 .vscode/
