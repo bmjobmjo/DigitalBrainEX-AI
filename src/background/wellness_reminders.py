@@ -159,7 +159,7 @@ class WellnessReminderManager(QObject):
         """1-second timer tick. Evaluates lock state, idle time, and active seconds."""
         # 1. Check if Windows session is locked or logged out
         if is_workstation_locked():
-            # Stop counting and reset timer until user logs in again
+            # Stop counting and reset timer when workstation is locked
             if self._is_active or self._water_active_seconds > 0 or self._sedentary_active_seconds > 0:
                 self.reset_timers()
             return
@@ -167,32 +167,57 @@ class WellnessReminderManager(QObject):
         # 2. Check mouse and keyboard idle duration
         idle_sec = get_idle_seconds()
         if idle_sec >= self._idle_threshold_sec:
-            # User has stepped away or is inactive: reset timer and stop counting
-            if self._is_active or self._water_active_seconds > 0 or self._sedentary_active_seconds > 0:
+            # User is temporarily inactive/away from keyboard: PAUSE counting until user resumes
+            self._is_active = False
+            # Only reset if user has been away for a long absence (>= 15 minutes / 900 seconds)
+            if idle_sec >= 900:
                 self.reset_timers()
+            self.status_updated.emit({
+                "is_active": False,
+                "water_elapsed_sec": int(self._water_active_seconds),
+                "water_target_sec": self._water_interval_min * 60,
+                "sedentary_elapsed_sec": int(self._sedentary_active_seconds),
+                "sedentary_target_sec": self._sedentary_interval_min * 60,
+            })
             return
 
         # 3. User is logged in AND mouse/keyboard are active
         self._is_active = True
 
         # Check Water Reminder
+        water_due = False
         if self._water_enabled:
             self._water_active_seconds += 1.0
             water_target_sec = self._water_interval_min * 60
             if self._water_active_seconds >= water_target_sec:
                 self._water_active_seconds = 0.0
-                self.alert_triggered.emit(
-                    "water",
-                    "Hydration Reminder",
-                    f"You have been working actively for {self._water_interval_min} minutes. Time to drink a glass of water!",
-                )
+                water_due = True
 
         # Check Sedentary / Stand & Move Reminder
+        sedentary_due = False
         if self._sedentary_enabled:
             self._sedentary_active_seconds += 1.0
             sedentary_target_sec = self._sedentary_interval_min * 60
             if self._sedentary_active_seconds >= sedentary_target_sec:
                 self._sedentary_active_seconds = 0.0
+                sedentary_due = True
+
+        if water_due:
+            self.alert_triggered.emit(
+                "water",
+                "Hydration Reminder",
+                f"You have been working actively for {self._water_interval_min} minutes. Time to drink a glass of water!",
+            )
+
+        if sedentary_due:
+            if water_due:
+                # Delay second alert so both banners flash distinctly without conflict
+                QTimer.singleShot(6000, lambda: self.alert_triggered.emit(
+                    "sedentary",
+                    "Stand Up & Stretch",
+                    f"You have been sitting for {self._sedentary_interval_min} minutes. Stand up, stretch, and move around!",
+                ))
+            else:
                 self.alert_triggered.emit(
                     "sedentary",
                     "Stand Up & Stretch",

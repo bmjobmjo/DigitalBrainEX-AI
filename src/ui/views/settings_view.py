@@ -165,8 +165,8 @@ class SettingsView(QWidget):
         act_layout = QVBoxLayout(grp_activity)
 
         lbl_desc = QLabel(
-            "Timers ONLY accumulate when you are actively using keyboard or mouse and logged in.\n"
-            "If mouse/keyboard becomes inactive or the screen is locked/logged out, the timer automatically stops and resets."
+            "Timers accumulate while you are actively using keyboard or mouse and logged in.\n"
+            "If mouse/keyboard becomes inactive, counting pauses until you resume. If workstation is locked or during extended absence, timers reset."
         )
         lbl_desc.setStyleSheet("color: #475569; font-size: 11px;")
         lbl_desc.setWordWrap(True)
@@ -178,7 +178,7 @@ class SettingsView(QWidget):
         self.spin_idle_threshold.setValue(60)
         self.spin_idle_threshold.setSuffix(" seconds")
         self.spin_idle_threshold.setFixedWidth(140)
-        a_form.addRow("Inactivity Reset Threshold:", self.spin_idle_threshold)
+        a_form.addRow("Inactivity Pause Threshold:", self.spin_idle_threshold)
         act_layout.addLayout(a_form)
         layout.addWidget(grp_activity)
 
@@ -227,31 +227,38 @@ class SettingsView(QWidget):
         # 1. OpenRouter Configuration (Primary AskMe Provider)
         grp_openrouter = QGroupBox("OpenRouter AI Assistant Configuration (AskMe)")
         or_layout = QVBoxLayout(grp_openrouter)
-        or_layout.setSpacing(8)
+        or_layout.setContentsMargins(14, 14, 14, 14)
+        or_layout.setSpacing(10)
 
         self.chk_openrouter_enable = QCheckBox("Enable OpenRouter for AskMe AI Assistant & Document Q&A")
         self.chk_openrouter_enable.setStyleSheet("font-weight: bold; color: #1e3a8a;")
         or_layout.addWidget(self.chk_openrouter_enable)
 
-        or_form = QFormLayout()
-        or_form.setSpacing(8)
+        # API Key row
+        or_layout.addWidget(QLabel("OpenRouter API Key (or set OPENROUTER_API_KEY environment variable):"))
+        key_widget = QWidget()
+        key_layout = QHBoxLayout(key_widget)
+        key_layout.setContentsMargins(0, 0, 0, 0)
+        key_layout.setSpacing(6)
 
-        # API Key row with show/hide toggle
-        key_layout = QHBoxLayout()
         self.edit_openrouter_key = QLineEdit()
         self.edit_openrouter_key.setEchoMode(QLineEdit.EchoMode.Password)
         self.edit_openrouter_key.setPlaceholderText("sk-or-v1-...")
+        self.edit_openrouter_key.setMinimumHeight(28)
         key_layout.addWidget(self.edit_openrouter_key)
 
         self.btn_toggle_key = QPushButton("Show")
-        self.btn_toggle_key.setFixedWidth(60)
+        self.btn_toggle_key.setFixedWidth(65)
+        self.btn_toggle_key.setMinimumHeight(28)
         self.btn_toggle_key.clicked.connect(self._toggle_key_visibility)
         key_layout.addWidget(self.btn_toggle_key)
-        or_form.addRow("OpenRouter API Key:", key_layout)
+        or_layout.addWidget(key_widget)
 
         # Model Selector
+        or_layout.addWidget(QLabel("Preferred Model:"))
         self.combo_openrouter_model = QComboBox()
         self.combo_openrouter_model.setEditable(True)
+        self.combo_openrouter_model.setMinimumHeight(28)
         self.combo_openrouter_model.addItems([
             "anthropic/claude-3.5-sonnet",
             "openai/gpt-4o-mini",
@@ -261,12 +268,14 @@ class SettingsView(QWidget):
             "deepseek/deepseek-chat",
             "qwen/qwen-2.5-72b-instruct",
         ])
-        or_form.addRow("Preferred Model:", self.combo_openrouter_model)
-        or_layout.addLayout(or_form)
+        or_layout.addWidget(self.combo_openrouter_model)
 
+        # Test Connection Row
         test_row = QHBoxLayout()
+        test_row.setSpacing(10)
         self.btn_test_openrouter = QPushButton("Test OpenRouter Connection")
         self.btn_test_openrouter.setIcon(IconHelper.get_icon("refresh", 16))
+        self.btn_test_openrouter.setMinimumHeight(28)
         self.btn_test_openrouter.clicked.connect(self._test_openrouter_connection)
         test_row.addWidget(self.btn_test_openrouter)
 
@@ -281,7 +290,8 @@ class SettingsView(QWidget):
         # 2. Local Document Embedding Configuration
         grp_embed = QGroupBox("Local Document Embedding Engine (100% On-Device RAG)")
         embed_layout = QVBoxLayout(grp_embed)
-        embed_layout.setSpacing(8)
+        embed_layout.setContentsMargins(14, 14, 14, 14)
+        embed_layout.setSpacing(10)
 
         lbl_embed_info = QLabel(
             "Embeddings are computed locally on your device without sending document contents to external APIs."
@@ -289,20 +299,24 @@ class SettingsView(QWidget):
         lbl_embed_info.setStyleSheet("color: #64748b; font-size: 12px;")
         embed_layout.addWidget(lbl_embed_info)
 
-        emb_form = QFormLayout()
+        embed_layout.addWidget(QLabel("Local Model Name:"))
         self.edit_embedding_model = QLineEdit()
         self.edit_embedding_model.setText("Qwen/Qwen3-Embedding-0.6B")
-        emb_form.addRow("Local Model Name:", self.edit_embedding_model)
+        self.edit_embedding_model.setMinimumHeight(28)
+        embed_layout.addWidget(self.edit_embedding_model)
 
+        embed_layout.addWidget(QLabel("Model Version:"))
         self.edit_embedding_version = QLineEdit()
         self.edit_embedding_version.setText("1.0")
-        emb_form.addRow("Model Version:", self.edit_embedding_version)
-        embed_layout.addLayout(emb_form)
+        self.edit_embedding_version.setMinimumHeight(28)
+        embed_layout.addWidget(self.edit_embedding_version)
 
         # Process pending button and status
         proc_row = QHBoxLayout()
+        proc_row.setSpacing(10)
         self.btn_process_embeddings = QPushButton("Process Pending Embeddings Now")
         self.btn_process_embeddings.setIcon(IconHelper.get_icon("ai", 16))
+        self.btn_process_embeddings.setMinimumHeight(28)
         self.btn_process_embeddings.clicked.connect(self._process_pending_embeddings)
         proc_row.addWidget(self.btn_process_embeddings)
 

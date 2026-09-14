@@ -61,8 +61,8 @@ class TestWellnessReminders(unittest.TestCase):
         self.assertTrue(manager._is_active)
 
     @patch("src.background.wellness_reminders.is_workstation_locked", return_value=False)
-    def test_idle_reset(self, mock_locked):
-        """Tests that timer stops counting and resets when mouse/keyboard is inactive."""
+    def test_idle_pause_and_resume(self, mock_locked):
+        """Tests that timer stops counting (pauses) when mouse/keyboard is idle, resumes when active, and resets on long absence."""
         manager = WellnessReminderManager()
         manager._water_enabled = True
         manager._idle_threshold_sec = 60
@@ -74,13 +74,24 @@ class TestWellnessReminders(unittest.TestCase):
                 manager._on_tick()
         self.assertEqual(manager._water_active_seconds, 30.0)
 
-        # Now simulate user inactive (e.g. idle for 65 seconds >= 60s threshold)
+        # Now simulate user temporarily idle (e.g. idle for 65 seconds >= 60s threshold)
         with patch("src.background.wellness_reminders.get_idle_seconds", return_value=65.0):
             manager._on_tick()
 
-        # Timer must be reset to 0
+        # Timer must PAUSE (remain at 30.0, not reset, but not increment)
+        self.assertEqual(manager._water_active_seconds, 30.0)
+        self.assertFalse(manager._is_active)
+
+        # User resumes typing -> resumes accumulating from 30.0 -> 31.0
+        with patch("src.background.wellness_reminders.get_idle_seconds", return_value=1.0):
+            manager._on_tick()
+        self.assertEqual(manager._water_active_seconds, 31.0)
+        self.assertTrue(manager._is_active)
+
+        # User leaves desk for extended absence (>= 900 seconds / 15 minutes)
+        with patch("src.background.wellness_reminders.get_idle_seconds", return_value=905.0):
+            manager._on_tick()
         self.assertEqual(manager._water_active_seconds, 0.0)
-        self.assertEqual(manager._sedentary_active_seconds, 0.0)
         self.assertFalse(manager._is_active)
 
     def test_locked_reset(self):
@@ -107,7 +118,7 @@ class TestWellnessReminders(unittest.TestCase):
     @patch("src.background.wellness_reminders.is_workstation_locked", return_value=False)
     @patch("src.background.wellness_reminders.get_idle_seconds", return_value=0.5)
     def test_alert_triggered(self, mock_idle, mock_locked):
-        """Tests that alert_triggered signal is emitted when interval completes."""
+        """Tests that alert_triggered signal is emitted and fires again at next interval."""
         manager = WellnessReminderManager()
         manager._water_enabled = True
         manager._water_interval_min = 1  # 1 minute = 60 seconds
@@ -124,8 +135,14 @@ class TestWellnessReminders(unittest.TestCase):
         self.assertEqual(len(alerts_received), 1)
         self.assertEqual(alerts_received[0][0], "water")
         self.assertIn("Hydration", alerts_received[0][1])
-        # Timer resets after firing
+        # Timer resets after firing so next cycle starts
         self.assertEqual(manager._water_active_seconds, 0.0)
+
+        # Fast forward next 59 seconds and tick -> must fire again at next timer-up event!
+        manager._water_active_seconds = 59.0
+        manager._on_tick()
+        self.assertEqual(len(alerts_received), 2)
+        self.assertEqual(alerts_received[1][0], "water")
 
     def test_snooze_and_dismiss(self):
         """Tests snooze and dismiss behavior."""

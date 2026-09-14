@@ -307,6 +307,7 @@ QLineEdit, QTextEdit, QPlainTextEdit, QSpinBox, QDateEdit, QDateTimeEdit, QTimeE
     border: 1px solid {p["border_input"]};
     border-radius: 2px;
     padding: 3px 6px;
+    min-height: 24px;
     selection-background-color: {p["accent"]};
     selection-color: {p["accent_text"]};
 }}

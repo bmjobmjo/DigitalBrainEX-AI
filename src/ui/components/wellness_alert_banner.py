@@ -110,7 +110,7 @@ class WellnessAlertBanner(QWidget):
         self._auto_close_timer = QTimer(self)
         self._auto_close_timer.setSingleShot(True)
         self._auto_close_timer.setInterval(5500)
-        self._auto_close_timer.timeout.connect(self.fade_out_and_close)
+        self._auto_close_timer.timeout.connect(self._on_auto_close_timeout)
 
     def _init_ui(self, alert_type: str, title: str, message: str):
         outer_layout = QVBoxLayout(self)
@@ -217,6 +217,10 @@ class WellnessAlertBanner(QWidget):
         self.snooze_requested.emit(self._alert_type)
         self.fade_out_and_close()
 
+    def _on_auto_close_timeout(self):
+        self.dismiss_requested.emit(self._alert_type)
+        self.fade_out_and_close()
+
     def fade_out_and_close(self):
         if self._is_closing:
             return
@@ -228,7 +232,14 @@ class WellnessAlertBanner(QWidget):
         self._fade_out_anim.setStartValue(self._opacity_effect.opacity())
         self._fade_out_anim.setEndValue(0.0)
         self._fade_out_anim.setEasingCurve(QEasingCurve.Type.InCubic)
-        self._fade_out_anim.finished.connect(self.close)
+
+        def _cleanup():
+            global _active_banner
+            if _active_banner is self:
+                _active_banner = None
+            self.close()
+
+        self._fade_out_anim.finished.connect(_cleanup)
         self._fade_out_anim.start()
 
 
