@@ -211,7 +211,9 @@ class DocumentsView(QWidget):
             self.load_data()
             self.document_changed.emit()
 
-    def _open_edit_doc_dialog(self):
+    def _open_edit_doc_dialog(self, *args):
+        if args and hasattr(args[0], "row"):
+            self.table.selectRow(args[0].row())
         doc_id = self._get_selected_doc_id()
         if not doc_id:
             QMessageBox.information(self, "No Selection", "Please select a document to edit.")
@@ -221,7 +223,9 @@ class DocumentsView(QWidget):
             self.load_data()
             self.document_changed.emit()
 
-    def _open_selected_file(self):
+    def _open_selected_file(self, *args):
+        if args and hasattr(args[0], "row"):
+            self.table.selectRow(args[0].row())
         doc_id = self._get_selected_doc_id()
         if not doc_id:
             QMessageBox.information(self, "No Selection", "Please select a document to open.")
@@ -371,14 +375,18 @@ class DocumentsView(QWidget):
         if not query:
             self._display_docs(self._docs)
             return
+        terms = [t.strip() for t in query.split("+") if t.strip()]
         filtered = [
             d for d in self._docs
-            if query in (d.DocumentName or "").lower()
-            or query in (d.ProjectName or "").lower()
-            or query in (d.Category or "").lower()
-            or query in (d.Desc or "").lower()
-            or query in (d.Notes or "").lower()
-            or query in (d.DocumentURI or "").lower()
+            if all(
+                t in (d.DocumentName or "").lower()
+                or t in (d.ProjectName or "").lower()
+                or t in (d.Category or "").lower()
+                or t in (d.Desc or "").lower()
+                or t in (d.Notes or "").lower()
+                or t in (d.DocumentURI or "").lower()
+                for t in terms
+            )
         ]
         self._display_docs(filtered)
 

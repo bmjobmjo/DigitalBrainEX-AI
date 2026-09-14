@@ -143,7 +143,9 @@ class ProjectsView(QWidget):
             self.load_data()
             self.project_updated.emit()
 
-    def _open_edit_project_dialog(self):
+    def _open_edit_project_dialog(self, *args):
+        if args and hasattr(args[0], "row"):
+            self.table.selectRow(args[0].row())
         project_id = self._get_selected_project_id()
         if not project_id:
             QMessageBox.information(self, "No Selection", "Please select a project to edit.")
@@ -193,11 +195,15 @@ class ProjectsView(QWidget):
         if not query:
             self._display_projects(self._projects)
             return
+        terms = [t.strip() for t in query.split("+") if t.strip()]
         filtered = [
             p for p in self._projects
-            if query in (p.ProjectName or "").lower()
-            or query in (p.Desc or "").lower()
-            or query in (p.Notes or "").lower()
+            if all(
+                term in (p.ProjectName or "").lower()
+                or term in (p.Desc or "").lower()
+                or term in (p.Notes or "").lower()
+                for term in terms
+            )
         ]
         self._display_projects(filtered)
 

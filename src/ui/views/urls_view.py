@@ -162,7 +162,9 @@ class UrlsView(QWidget):
             self.load_data()
             self.url_changed.emit()
 
-    def _open_edit_url_dialog(self):
+    def _open_edit_url_dialog(self, *args):
+        if args and hasattr(args[0], "row"):
+            self.table.selectRow(args[0].row())
         url_id = self._get_selected_url_id()
         if not url_id:
             QMessageBox.information(self, "No Selection", "Please select a bookmark to edit.")
@@ -172,7 +174,9 @@ class UrlsView(QWidget):
             self.load_data()
             self.url_changed.emit()
 
-    def _open_selected_url(self):
+    def _open_selected_url(self, *args):
+        if args and hasattr(args[0], "row"):
+            self.table.selectRow(args[0].row())
         url_id = self._get_selected_url_id()
         if not url_id:
             QMessageBox.information(self, "No Selection", "Please select a bookmark to open.")
@@ -261,13 +265,19 @@ class UrlsView(QWidget):
         if not query:
             self._display_urls(self._urls)
             return
+        terms = [t.strip() for t in query.split("+") if t.strip()]
         filtered = [
             u for u in self._urls
-            if query in (u.UrlName or "").lower()
-            or query in (u.Url or "").lower()
-            or query in (u.Notes or "").lower()
+            if all(
+                term in (u.UrlName or "").lower()
+                or term in (u.Url or "").lower()
+                or term in (u.Notes or "").lower()
+                or term in (u.ProjectName or "").lower()
+                or term in (u.Category or "").lower()
+                for term in terms
+            )
         ]
-        self._display_docs(filtered) if hasattr(self, "_display_docs") else self._display_urls(filtered)
+        self._display_urls(filtered)
 
     def _clear_search(self):
         self.search_input.clear()

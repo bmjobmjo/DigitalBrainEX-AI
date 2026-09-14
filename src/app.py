@@ -35,6 +35,9 @@ def main():
     # Initialize SQLite database connection
     try:
         init_db()
+        from src.core.database import take_startup_db_backup, remove_old_db_backups
+        take_startup_db_backup()
+        remove_old_db_backups(max_days=5)
     except Exception as e:
         logger.error(f"Fatal error initializing database: {e}", exc_info=True)
         sys.exit(1)

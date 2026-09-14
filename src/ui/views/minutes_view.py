@@ -150,7 +150,9 @@ class MinutesView(QWidget):
             self.load_data()
             self.minutes_changed.emit()
 
-    def _open_edit_minutes_dialog(self):
+    def _open_edit_minutes_dialog(self, *args):
+        if args and hasattr(args[0], "row"):
+            self.table.selectRow(args[0].row())
         minute_id = self._get_selected_minute_id()
         if not minute_id:
             QMessageBox.information(self, "No Selection", "Please select a meeting minute to edit.")
@@ -198,11 +200,16 @@ class MinutesView(QWidget):
         if not query:
             self._display_minutes(self._minutes)
             return
+        terms = [t.strip() for t in query.split("+") if t.strip()]
         filtered = [
             m for m in self._minutes
-            if query in (m.DocumentName or "").lower()
-            or query in (m.Notes or "").lower()
-            or query in (m.Desc or "").lower()
+            if all(
+                term in (m.DocumentName or "").lower()
+                or term in (m.Notes or "").lower()
+                or term in (m.Desc or "").lower()
+                or term in (m.ProjectName or "").lower()
+                for term in terms
+            )
         ]
         self._display_minutes(filtered)
 
@@ -227,7 +234,9 @@ class MinutesView(QWidget):
             self.load_data()
             self.minutes_changed.emit()
 
-    def _open_selected_audio(self):
+    def _open_selected_audio(self, *args):
+        if args and hasattr(args[0], "row"):
+            self.table.selectRow(args[0].row())
         minute_id = self._get_selected_minute_id()
         if not minute_id:
             return

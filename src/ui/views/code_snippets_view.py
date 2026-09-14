@@ -156,7 +156,9 @@ class CodeSnippetsView(QWidget):
             self.load_data()
             self.snippet_changed.emit()
 
-    def _open_edit_snippet_dialog(self):
+    def _open_edit_snippet_dialog(self, *args):
+        if args and hasattr(args[0], "row"):
+            self.table.selectRow(args[0].row())
         snippet_id = self._get_selected_snippet_id()
         if not snippet_id:
             QMessageBox.information(self, "No Selection", "Please select a code snippet to edit.")
@@ -244,12 +246,17 @@ class CodeSnippetsView(QWidget):
         if not query:
             self._display_snippets(self._snippets)
             return
+        terms = [t.strip() for t in query.split("+") if t.strip()]
         filtered = [
             s for s in self._snippets
-            if query in (s.DocumentName or "").lower()
-            or query in (s.Desc or "").lower()
-            or query in (s.Notes or "").lower()
-            or query in (s.Language or "").lower()
+            if all(
+                term in (s.DocumentName or "").lower()
+                or term in (s.Desc or "").lower()
+                or term in (s.Notes or "").lower()
+                or term in (s.Language or "").lower()
+                or term in (s.ProjectName or "").lower()
+                for term in terms
+            )
         ]
         self._display_snippets(filtered)
 

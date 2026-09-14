@@ -112,6 +112,7 @@ class MainWindow(QMainWindow):
 
         # Wire cross-view updates
         self.view_projects.project_updated.connect(self.top_bar.load_projects)
+        self.top_bar.search_requested.connect(self._on_top_bar_search)
 
         # Wire AskMe AI Agent
         from src.ai.agents import AskMeAgent
@@ -192,6 +193,26 @@ class MainWindow(QMainWindow):
                 active_widget.refresh_configuration_state()
             if hasattr(active_widget, "on_enter_screen"):
                 active_widget.on_enter_screen()
+
+    def _on_top_bar_search(self, query: str):
+        active_view = self.view_stack.currentWidget()
+        if not active_view:
+            return
+        if hasattr(active_view, "search_input"):
+            active_view.search_input.setText(query)
+            for fn_name in (
+                "_filter_docs",
+                "_filter_tasks",
+                "_filter_snippets",
+                "_filter_notes",
+                "_filter_secrets",
+                "_filter_urls",
+                "_filter_projects",
+                "_filter_minutes",
+            ):
+                if hasattr(active_view, fn_name):
+                    getattr(active_view, fn_name)()
+                    break
 
 
 

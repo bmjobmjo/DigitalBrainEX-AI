@@ -143,13 +143,15 @@ class SecretsView(QWidget):
             return None
         return id_item.data(Qt.ItemDataRole.UserRole)
 
-    def _open_new_secret_dialog(self):
+    def _open_new_secret_dialog(self, *args):
         dlg = SecretEditorDialog(parent=self, default_project_id=self._active_project_id, mode="add")
         if dlg.exec():
             self.load_data()
             self.secret_changed.emit()
 
-    def _open_edit_secret_dialog(self):
+    def _open_edit_secret_dialog(self, *args):
+        if args and hasattr(args[0], "row"):
+            self.table.selectRow(args[0].row())
         secret_id = self._get_selected_secret_id()
         if not secret_id:
             QMessageBox.information(self, "No Selection", "Please select a secret to view or edit.")
@@ -195,11 +197,16 @@ class SecretsView(QWidget):
         if not query:
             self._display_secrets(self._secrets)
             return
+        terms = [t.strip() for t in query.split("+") if t.strip()]
         filtered = [
             s for s in self._secrets
-            if query in (s.SecretName or "").lower()
-            or query in (s.ApplicationURL or "").lower()
-            or query in (s.Desc or "").lower()
+            if all(
+                term in (s.SecretName or "").lower()
+                or term in (s.ApplicationURL or "").lower()
+                or term in (s.Desc or "").lower()
+                or term in (s.ProjectName or "").lower()
+                for term in terms
+            )
         ]
         self._display_secrets(filtered)
 
@@ -207,7 +214,7 @@ class SecretsView(QWidget):
         self.search_input.clear()
         self.load_data()
 
-    def _delete_secret(self):
+    def _delete_secret(self, *args):
         secret_id = self._get_selected_secret_id()
         if not secret_id:
             QMessageBox.information(self, "No Selection", "Please select a secret to delete.")

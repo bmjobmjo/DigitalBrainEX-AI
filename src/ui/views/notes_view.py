@@ -181,12 +181,16 @@ class NotesView(QWidget):
         if not query:
             self._display_notes(self._notes)
             return
+        terms = [t.strip() for t in query.split("+") if t.strip()]
         filtered = [
             n for n in self._notes
-            if query in (n.DocumentName or "").lower()
-            or query in (n.Desc or "").lower()
-            or query in (n.Notes or "").lower()
-            or query in (n.ProjectName or "").lower()
+            if all(
+                term in (n.DocumentName or "").lower()
+                or term in (n.Desc or "").lower()
+                or term in (n.Notes or "").lower()
+                or term in (n.ProjectName or "").lower()
+                for term in terms
+            )
         ]
         self._display_notes(filtered)
 
@@ -211,7 +215,9 @@ class NotesView(QWidget):
             self.load_data()
             self.note_changed.emit()
 
-    def _open_edit_note_dialog(self):
+    def _open_edit_note_dialog(self, *args):
+        if args and hasattr(args[0], "row"):
+            self.table.selectRow(args[0].row())
         note_id = self._get_selected_note_id()
         if not note_id:
             QMessageBox.information(self, "Selection Required", "Please select a note to edit.")

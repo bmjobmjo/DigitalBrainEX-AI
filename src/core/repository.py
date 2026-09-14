@@ -26,6 +26,23 @@ from src.core.crypto import encrypt_des3, decrypt_des3
 from src.core.logger import logger
 
 
+def _build_multi_term_filter(search_str: Optional[str], columns: list):
+    """
+    Splits search_str by '+' (matching original C# DataManager.generateQueryPart).
+    Each '+'-delimited term must be present in at least one of the given columns (AND across terms, OR across columns).
+    """
+    if not search_str or not search_str.strip():
+        return None
+    terms = [term.strip() for term in search_str.split("+") if term.strip()]
+    if not terms:
+        return None
+    conditions = []
+    for term in terms:
+        term_pattern = f"%{term}%"
+        conditions.append(or_(*[col.ilike(term_pattern) for col in columns]))
+    return and_(*conditions)
+
+
 class DataRepository:
     """Access layer for database entities with thread-safe session handling."""
 
@@ -33,11 +50,15 @@ class DataRepository:
     # PROJECTS
     # -------------------------------------------------------------------------
     @staticmethod
-    def get_all_projects(status: Optional[str] = None) -> List[Project]:
+    def get_all_projects(status: Optional[str] = None, search: Optional[str] = None) -> List[Project]:
         with get_db_session() as session:
             query = session.query(Project)
             if status:
                 query = query.filter(Project.Status == status)
+            if search:
+                filt = _build_multi_term_filter(search, [Project.ProjectName, Project.Desc, Project.Notes])
+                if filt is not None:
+                    query = query.filter(filt)
             return query.order_by(Project.ProjectName.asc()).all()
 
     @staticmethod
@@ -102,12 +123,9 @@ class DataRepository:
             if status and status != "All":
                 query = query.filter(Task.Status == status)
             if search:
-                query = query.filter(
-                    or_(
-                        Task.TaskName.ilike(f"%{search}%"),
-                        Task.TaskDesc.ilike(f"%{search}%"),
-                    )
-                )
+                filt = _build_multi_term_filter(search, [Task.TaskName, Task.TaskDesc, Task.ProjectName])
+                if filt is not None:
+                    query = query.filter(filt)
             return query.order_by(Task.DueOn.asc(), Task.Priority.desc()).all()
 
     @staticmethod
@@ -196,13 +214,12 @@ class DataRepository:
             elif exclude_categories:
                 query = query.filter(~Document.Category.in_(exclude_categories))
             if search:
-                query = query.filter(
-                    or_(
-                        Document.DocumentName.ilike(f"%{search}%"),
-                        Document.Desc.ilike(f"%{search}%"),
-                        Document.Notes.ilike(f"%{search}%"),
-                    )
+                filt = _build_multi_term_filter(
+                    search,
+                    [Document.DocumentName, Document.DocumentURI, Document.Desc, Document.Notes, Document.ProjectName, Document.Category],
                 )
+                if filt is not None:
+                    query = query.filter(filt)
             return query.order_by(Document.DocumentID.desc()).all()
 
     @staticmethod
@@ -216,13 +233,12 @@ class DataRepository:
             if project_id and project_id != 0:
                 query = query.filter(Document.PojectID == project_id)
             if search:
-                query = query.filter(
-                    or_(
-                        Document.DocumentName.ilike(f"%{search}%"),
-                        Document.Desc.ilike(f"%{search}%"),
-                        Document.Notes.ilike(f"%{search}%"),
-                    )
+                filt = _build_multi_term_filter(
+                    search,
+                    [Document.DocumentName, Document.Desc, Document.Notes, Document.ProjectName],
                 )
+                if filt is not None:
+                    query = query.filter(filt)
             return query.order_by(Document.DocumentID.desc()).all()
 
     @staticmethod
@@ -239,13 +255,12 @@ class DataRepository:
             if project_id and project_id != 0:
                 query = query.filter(Document.PojectID == project_id)
             if search:
-                query = query.filter(
-                    or_(
-                        Document.DocumentName.ilike(f"%{search}%"),
-                        Document.Desc.ilike(f"%{search}%"),
-                        Document.Notes.ilike(f"%{search}%"),
-                    )
+                filt = _build_multi_term_filter(
+                    search,
+                    [Document.DocumentName, Document.Desc, Document.Notes, Document.ProjectName],
                 )
+                if filt is not None:
+                    query = query.filter(filt)
             return query.order_by(Document.DocumentID.desc()).all()
 
     @staticmethod
@@ -259,14 +274,12 @@ class DataRepository:
             if project_id and project_id != 0:
                 query = query.filter(Document.PojectID == project_id)
             if search:
-                query = query.filter(
-                    or_(
-                        Document.DocumentName.ilike(f"%{search}%"),
-                        Document.Desc.ilike(f"%{search}%"),
-                        Document.Notes.ilike(f"%{search}%"),
-                        Document.Language.ilike(f"%{search}%"),
-                    )
+                filt = _build_multi_term_filter(
+                    search,
+                    [Document.DocumentName, Document.Desc, Document.Notes, Document.Language, Document.ProjectName],
                 )
+                if filt is not None:
+                    query = query.filter(filt)
             return query.order_by(Document.DocumentID.desc()).all()
 
     @staticmethod
@@ -413,13 +426,12 @@ class DataRepository:
             if category and category != "All":
                 query = query.filter(Url.Category == category)
             if search:
-                query = query.filter(
-                    or_(
-                        Url.UrlName.ilike(f"%{search}%"),
-                        Url.Url.ilike(f"%{search}%"),
-                        Url.Notes.ilike(f"%{search}%"),
-                    )
+                filt = _build_multi_term_filter(
+                    search,
+                    [Url.UrlName, Url.Url, Url.Notes, Url.ProjectName, Url.Category],
                 )
+                if filt is not None:
+                    query = query.filter(filt)
             return query.order_by(Url.UrlID.desc()).all()
 
     @staticmethod
@@ -469,14 +481,18 @@ class DataRepository:
             if project_id and str(project_id) != "0":
                 query = query.filter(Secret.ProjectID == str(project_id))
             if search:
-                query = query.filter(
-                    or_(
-                        Secret.SecretName.ilike(f"%{search}%"),
-                        Secret.ApplicationURL.ilike(f"%{search}%"),
-                        Secret.Desc.ilike(f"%{search}%"),
-                    )
+                filt = _build_multi_term_filter(
+                    search,
+                    [Secret.SecretName, Secret.ApplicationURL, Secret.Desc, Secret.ProjectName],
                 )
+                if filt is not None:
+                    query = query.filter(filt)
             return query.order_by(Secret.SecretName.asc()).all()
+
+    @staticmethod
+    def get_secret_by_id(secret_id: int) -> Optional[Secret]:
+        with get_db_session() as session:
+            return session.query(Secret).filter(Secret.SecretID == secret_id).first()
 
     @staticmethod
     def create_secret(
@@ -526,6 +542,25 @@ class DataRepository:
             secret.UpdatedON = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             secret.DirtyFlag = 1
             return True
+
+    @staticmethod
+    def delete_secret(secret_id: int) -> bool:
+        with get_db_session() as session:
+            secret = session.query(Secret).filter(Secret.SecretID == secret_id).first()
+            if secret:
+                session.delete(secret)
+                return True
+            return False
+
+    @staticmethod
+    def encrypt_secret_value(key: str, plain_text: str) -> str:
+        """Encrypts a secret string using TripleDES matching C# CryptHelper."""
+        return encrypt_des3(key, plain_text)
+
+    @staticmethod
+    def decrypt_secret_value(key: str, cipher_b64: str) -> str:
+        """Decrypts a secret string using TripleDES matching C# CryptHelper."""
+        return decrypt_des3(key, cipher_b64)
 
     @staticmethod
     def decrypt_secret_credentials(secret: Secret, key: str) -> Tuple[str, str]:
@@ -637,10 +672,12 @@ class DataRepository:
             if content_type and content_type != "All":
                 query = query.filter(ClipboardHistory.ContentType == content_type)
             if search:
-                query = query.filter(
-                    (ClipboardHistory.TextContent.ilike(f"%{search}%")) |
-                    (ClipboardHistory.ImagePath.ilike(f"%{search}%"))
+                filt = _build_multi_term_filter(
+                    search,
+                    [ClipboardHistory.TextContent, ClipboardHistory.ImagePath],
                 )
+                if filt is not None:
+                    query = query.filter(filt)
             return query.order_by(ClipboardHistory.ID.desc()).limit(limit).all()
 
     @staticmethod

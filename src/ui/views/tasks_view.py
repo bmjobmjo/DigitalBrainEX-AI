@@ -166,7 +166,9 @@ class TasksView(QWidget):
             self.load_data()
             self.task_changed.emit()
 
-    def _open_edit_task_dialog(self):
+    def _open_edit_task_dialog(self, *args):
+        if args and hasattr(args[0], "row"):
+            self.table.selectRow(args[0].row())
         task_id = self._get_selected_task_id()
         if not task_id:
             QMessageBox.information(self, "No Selection", "Please select a task to edit.")
@@ -249,9 +251,15 @@ class TasksView(QWidget):
         if not query:
             self._display_tasks(self._all_tasks)
             return
+        terms = [t.strip() for t in query.split("+") if t.strip()]
         filtered = [
             t for t in self._all_tasks
-            if query in (t.TaskName or "").lower() or query in (t.TaskDesc or "").lower()
+            if all(
+                term in (t.TaskName or "").lower()
+                or term in (t.TaskDesc or "").lower()
+                or term in (t.ProjectName or "").lower()
+                for term in terms
+            )
         ]
         self._display_tasks(filtered)
 

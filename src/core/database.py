@@ -3,7 +3,7 @@ Database Connection and Session Management for DigitalBrainEX AI.
 Connects directly to the existing SQLite database via SQLAlchemy 2.0.
 """
 from contextlib import contextmanager
-from typing import Generator
+from typing import Generator, Optional
 import os
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker, Session, declarative_base
@@ -136,4 +136,101 @@ def init_db():
 
     logger.info("Database schema initialized/verified.")
     seed_default_data_if_empty()
+
+
+def take_startup_db_backup() -> Optional[str]:
+    """
+    Creates a backup copy of the active database on startup.
+    Matches C# DevDiaryManager.TakeDBBackup():
+    Backup path: {DocFolder}/DevDiary-{DD-MM-YYYY}.db3
+    Uses sqlite3 online backup to guarantee safe, non-corrupted copy.
+    """
+    import sqlite3
+    from datetime import datetime
+    import shutil
+    from typing import Optional
+    from src.config import DB_PATH
+    from src.utils.config_manager import get_doc_folder
+
+    if not os.path.exists(DB_PATH):
+        logger.warning(f"Database path does not exist for backup: {DB_PATH}")
+        return None
+
+    # Determine backup folder
+    doc_folder = get_doc_folder()
+    if not doc_folder or not os.path.exists(doc_folder):
+        doc_folder = os.path.dirname(os.path.abspath(DB_PATH))
+
+    os.makedirs(doc_folder, exist_ok=True)
+    today_str = datetime.now().strftime("%d-%m-%Y")
+    backup_filename = f"DevDiary-{today_str}.db3"
+    dest_path = os.path.join(doc_folder, backup_filename)
+
+    # If the active DB is already the backup file itself, skip to avoid recursion
+    if os.path.abspath(DB_PATH) == os.path.abspath(dest_path):
+        logger.info("Active database is already the target backup file; skipping backup.")
+        return dest_path
+
+    try:
+        # Use sqlite3 online backup API for safe transactional backup
+        src_conn = sqlite3.connect(DB_PATH)
+        dst_conn = sqlite3.connect(dest_path)
+        with dst_conn:
+            src_conn.backup(dst_conn)
+        dst_conn.close()
+        src_conn.close()
+        logger.info(f"Database backup created successfully: {dest_path}")
+        return dest_path
+    except Exception as e:
+        logger.error(f"sqlite3 backup failed, falling back to file copy: {e}")
+        try:
+            shutil.copy2(DB_PATH, dest_path)
+            logger.info(f"Database backup copied successfully: {dest_path}")
+            return dest_path
+        except Exception as copy_err:
+            logger.error(f"Failed to create startup database backup: {copy_err}")
+            return None
+
+
+def remove_old_db_backups(max_days: int = 5):
+    """
+    Deletes backup files matching 'DevDiary-*' that are older than max_days.
+    Matches C# DevDiaryManager.RemoveOldDBBackups().
+    """
+    import time
+    from src.config import DB_PATH
+    from src.utils.config_manager import get_doc_folder
+
+    search_dirs = set()
+    doc_folder = get_doc_folder()
+    if doc_folder and os.path.exists(doc_folder):
+        search_dirs.add(os.path.abspath(doc_folder))
+
+    if os.path.exists(DB_PATH):
+        search_dirs.add(os.path.abspath(os.path.dirname(DB_PATH)))
+
+    active_db_abs = os.path.abspath(DB_PATH) if os.path.exists(DB_PATH) else None
+    cutoff_time = time.time() - (max_days * 86400.0)
+
+    for directory in search_dirs:
+        try:
+            for fname in os.listdir(directory):
+                if not fname.startswith("DevDiary-"):
+                    continue
+                if not (fname.endswith(".db") or fname.endswith(".db3")):
+                    continue
+                fpath = os.path.join(directory, fname)
+                abs_fpath = os.path.abspath(fpath)
+                if abs_fpath == active_db_abs:
+                    continue  # NEVER delete the active database!
+
+                try:
+                    file_mtime = os.path.getmtime(abs_fpath)
+                    if file_mtime < cutoff_time:
+                        os.remove(abs_fpath)
+                        logger.info(f"Removed old database backup: {abs_fpath}")
+                except Exception as del_err:
+                    logger.warning(f"Could not remove old backup {abs_fpath}: {del_err}")
+        except Exception as dir_err:
+            logger.warning(f"Error scanning directory {directory} for old backups: {dir_err}")
 
