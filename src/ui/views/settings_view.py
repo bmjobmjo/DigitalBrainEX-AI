@@ -20,6 +20,9 @@ from PyQt6.QtWidgets import (
     QApplication,
     QSpinBox,
     QFormLayout,
+    QScrollArea,
+    QFrame,
+    QSizePolicy,
 )
 from PyQt6.QtCore import Qt
 from src.config import DB_PATH, TEMP_PAD_DIR, SCREENSHOTS_DIR, APP_VERSION, DEFAULT_THEME
@@ -39,6 +42,15 @@ class SettingsView(QWidget):
         self._init_ui()
         self.load_settings()
 
+    def _wrap_scrollable(self, content_widget: QWidget) -> QScrollArea:
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        scroll.setWidget(content_widget)
+        return scroll
+
     def _init_ui(self):
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(12, 10, 12, 10)
@@ -52,13 +64,13 @@ class SettingsView(QWidget):
         # Tab Widget
         self.tabs = QTabWidget()
 
-        self.tabs.addTab(self._create_general_tab(), "General & Startup")
-        self.tabs.addTab(self._create_wellness_tab(), "Wellness & Health")
-        self.tabs.addTab(self._create_genai_tab(), "GenAI & LLM")
-        self.tabs.addTab(self._create_hotkeys_tab(), "Hotkeys & Shortcuts")
+        self.tabs.addTab(self._wrap_scrollable(self._create_general_tab()), "General & Startup")
+        self.tabs.addTab(self._wrap_scrollable(self._create_wellness_tab()), "Wellness & Health")
+        self.tabs.addTab(self._wrap_scrollable(self._create_genai_tab()), "GenAI & LLM")
+        self.tabs.addTab(self._wrap_scrollable(self._create_hotkeys_tab()), "Hotkeys & Shortcuts")
         self.tabs.addTab(self._create_watchfolders_tab(), "Watch Folders")
-        self.tabs.addTab(self._create_paths_tab(), "Paths & Storage")
-        self.tabs.addTab(self._create_about_tab(), "About & Diagnostics")
+        self.tabs.addTab(self._wrap_scrollable(self._create_paths_tab()), "Paths & Storage")
+        self.tabs.addTab(self._wrap_scrollable(self._create_about_tab()), "About & Diagnostics")
 
         main_layout.addWidget(self.tabs)
 
@@ -124,11 +136,19 @@ class SettingsView(QWidget):
         widget = QWidget()
         layout = QVBoxLayout(widget)
         layout.setContentsMargins(16, 16, 16, 16)
-        layout.setSpacing(14)
+        layout.setSpacing(12)
+
+        # Row 1: Drink Water Reminder & Sedentary Reminder side-by-side
+        timers_row = QHBoxLayout()
+        timers_row.setSpacing(12)
 
         # 1. Drink Water Reminder
         grp_water = QGroupBox("Drink Water (Hydration) Reminder")
+        grp_water.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         water_layout = QVBoxLayout(grp_water)
+        water_layout.setContentsMargins(14, 14, 14, 14)
+        water_layout.setSpacing(8)
+
         self.chk_water_reminder = QCheckBox("Enable Drink Water Reminder")
         self.chk_water_reminder.setChecked(True)
         water_layout.addWidget(self.chk_water_reminder)
@@ -138,15 +158,19 @@ class SettingsView(QWidget):
         self.spin_water_interval.setRange(1, 240)
         self.spin_water_interval.setValue(45)
         self.spin_water_interval.setSuffix(" minutes")
-        self.spin_water_interval.setFixedWidth(140)
+        self.spin_water_interval.setFixedWidth(120)
         w_form.addRow("Reminder Interval:", self.spin_water_interval)
         water_layout.addLayout(w_form)
-        layout.addWidget(grp_water)
+        timers_row.addWidget(grp_water)
 
         # 2. Sedentary / Stand & Move Reminder
         grp_sed = QGroupBox("Sedentary / Stand & Move Reminder")
+        grp_sed.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         sed_layout = QVBoxLayout(grp_sed)
-        self.chk_sedentary_reminder = QCheckBox("Enable Sedentary / Stand & Move Reminder")
+        sed_layout.setContentsMargins(14, 14, 14, 14)
+        sed_layout.setSpacing(8)
+
+        self.chk_sedentary_reminder = QCheckBox("Enable Sedentary Reminder")
         self.chk_sedentary_reminder.setChecked(True)
         sed_layout.addWidget(self.chk_sedentary_reminder)
 
@@ -155,14 +179,19 @@ class SettingsView(QWidget):
         self.spin_sedentary_interval.setRange(1, 240)
         self.spin_sedentary_interval.setValue(60)
         self.spin_sedentary_interval.setSuffix(" minutes")
-        self.spin_sedentary_interval.setFixedWidth(140)
+        self.spin_sedentary_interval.setFixedWidth(120)
         s_form.addRow("Reminder Interval:", self.spin_sedentary_interval)
         sed_layout.addLayout(s_form)
-        layout.addWidget(grp_sed)
+        timers_row.addWidget(grp_sed)
+
+        layout.addLayout(timers_row)
 
         # 3. Smart Inactivity & Lock Detection
         grp_activity = QGroupBox("Active Input & Inactivity Detection")
+        grp_activity.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         act_layout = QVBoxLayout(grp_activity)
+        act_layout.setContentsMargins(14, 14, 14, 14)
+        act_layout.setSpacing(8)
 
         lbl_desc = QLabel(
             "Timers accumulate while you are actively using keyboard or mouse and logged in.\n"
@@ -177,22 +206,27 @@ class SettingsView(QWidget):
         self.spin_idle_threshold.setRange(10, 600)
         self.spin_idle_threshold.setValue(60)
         self.spin_idle_threshold.setSuffix(" seconds")
-        self.spin_idle_threshold.setFixedWidth(140)
+        self.spin_idle_threshold.setFixedWidth(120)
         a_form.addRow("Inactivity Pause Threshold:", self.spin_idle_threshold)
         act_layout.addLayout(a_form)
         layout.addWidget(grp_activity)
 
         # 4. Preview / Test Buttons
         grp_test = QGroupBox("Preview & Test Alerts")
+        grp_test.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         test_layout = QHBoxLayout(grp_test)
+        test_layout.setContentsMargins(14, 14, 14, 14)
+        test_layout.setSpacing(10)
 
         btn_test_water = QPushButton("Preview Water Alert")
         btn_test_water.setIcon(IconHelper.get_icon("water_drop", 16))
+        btn_test_water.setMinimumHeight(28)
         btn_test_water.clicked.connect(self._test_water_alert)
         test_layout.addWidget(btn_test_water)
 
         btn_test_sed = QPushButton("Preview Sedentary Alert")
         btn_test_sed.setIcon(IconHelper.get_icon("sedentary_walk", 16))
+        btn_test_sed.setMinimumHeight(28)
         btn_test_sed.clicked.connect(self._test_sedentary_alert)
         test_layout.addWidget(btn_test_sed)
 
@@ -226,9 +260,10 @@ class SettingsView(QWidget):
 
         # 1. OpenRouter Configuration (Primary AskMe Provider)
         grp_openrouter = QGroupBox("OpenRouter AI Assistant Configuration (AskMe)")
+        grp_openrouter.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         or_layout = QVBoxLayout(grp_openrouter)
         or_layout.setContentsMargins(14, 14, 14, 14)
-        or_layout.setSpacing(10)
+        or_layout.setSpacing(8)
 
         self.chk_openrouter_enable = QCheckBox("Enable OpenRouter for AskMe AI Assistant & Document Q&A")
         self.chk_openrouter_enable.setStyleSheet("font-weight: bold; color: #1e3a8a;")
@@ -289,27 +324,40 @@ class SettingsView(QWidget):
 
         # 2. Local Document Embedding Configuration
         grp_embed = QGroupBox("Local Document Embedding Engine (100% On-Device RAG)")
+        grp_embed.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         embed_layout = QVBoxLayout(grp_embed)
         embed_layout.setContentsMargins(14, 14, 14, 14)
-        embed_layout.setSpacing(10)
+        embed_layout.setSpacing(8)
 
         lbl_embed_info = QLabel(
             "Embeddings are computed locally on your device without sending document contents to external APIs."
         )
-        lbl_embed_info.setStyleSheet("color: #64748b; font-size: 12px;")
+        lbl_embed_info.setStyleSheet("color: #64748b; font-size: 11px;")
         embed_layout.addWidget(lbl_embed_info)
 
-        embed_layout.addWidget(QLabel("Local Model Name:"))
+        # 2-column row for Model Name & Version
+        mv_row = QHBoxLayout()
+        mv_row.setSpacing(12)
+
+        col_name = QVBoxLayout()
+        col_name.setSpacing(4)
+        col_name.addWidget(QLabel("Local Model Name:"))
         self.edit_embedding_model = QLineEdit()
         self.edit_embedding_model.setText("Qwen/Qwen3-Embedding-0.6B")
         self.edit_embedding_model.setMinimumHeight(28)
-        embed_layout.addWidget(self.edit_embedding_model)
+        col_name.addWidget(self.edit_embedding_model)
+        mv_row.addLayout(col_name, stretch=3)
 
-        embed_layout.addWidget(QLabel("Model Version:"))
+        col_ver = QVBoxLayout()
+        col_ver.setSpacing(4)
+        col_ver.addWidget(QLabel("Model Version:"))
         self.edit_embedding_version = QLineEdit()
         self.edit_embedding_version.setText("1.0")
         self.edit_embedding_version.setMinimumHeight(28)
-        embed_layout.addWidget(self.edit_embedding_version)
+        col_ver.addWidget(self.edit_embedding_version)
+        mv_row.addLayout(col_ver, stretch=1)
+
+        embed_layout.addLayout(mv_row)
 
         # Process pending button and status
         proc_row = QHBoxLayout()
@@ -321,39 +369,62 @@ class SettingsView(QWidget):
         proc_row.addWidget(self.btn_process_embeddings)
 
         self.lbl_pending_status = QLabel("")
+        self.lbl_pending_status.setStyleSheet("color: #475569; font-weight: 500;")
         proc_row.addWidget(self.lbl_pending_status)
         proc_row.addStretch()
         embed_layout.addLayout(proc_row)
 
         layout.addWidget(grp_embed)
 
-        # 3. Google Gemini Configuration (Optional Fallback)
+        # 3. Side-by-side row for Gemini & Audio Fallbacks
+        row_extra = QHBoxLayout()
+        row_extra.setSpacing(12)
+
         grp_gemini = QGroupBox("Google Gemini Configuration (Optional)")
+        grp_gemini.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
         gemini_layout = QVBoxLayout(grp_gemini)
+        gemini_layout.setContentsMargins(14, 14, 14, 14)
+        gemini_layout.setSpacing(8)
 
         gemini_layout.addWidget(QLabel("Gemini API Key (or set GEMINI_API_KEY environment variable):"))
         self.edit_gemini_key = QLineEdit()
         self.edit_gemini_key.setEchoMode(QLineEdit.EchoMode.Password)
+        self.edit_gemini_key.setPlaceholderText("AIzaSy...")
+        self.edit_gemini_key.setMinimumHeight(28)
         self.edit_gemini_key.setText(os.environ.get("GEMINI_API_KEY", ""))
         gemini_layout.addWidget(self.edit_gemini_key)
 
         gemini_layout.addWidget(QLabel("Default LLM Model:"))
         self.combo_llm_model = QComboBox()
+        self.combo_llm_model.setMinimumHeight(28)
         self.combo_llm_model.addItems(["gemini-2.0-flash", "gemini-1.5-pro", "gemini-1.5-flash"])
         gemini_layout.addWidget(self.combo_llm_model)
+        gemini_layout.addStretch()
 
-        layout.addWidget(grp_gemini)
+        row_extra.addWidget(grp_gemini)
 
         # 4. Speech & Audio
         grp_audio = QGroupBox("Speech & Transcription")
+        grp_audio.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
         audio_layout = QVBoxLayout(grp_audio)
+        audio_layout.setContentsMargins(14, 14, 14, 14)
+        audio_layout.setSpacing(8)
 
         audio_layout.addWidget(QLabel("Speech-to-Text Engine:"))
         self.combo_stt_engine = QComboBox()
+        self.combo_stt_engine.setMinimumHeight(28)
         self.combo_stt_engine.addItems(["Local Whisper (Faster-Whisper)", "Gemini Cloud Audio API", "Vosk (Offline)"])
         audio_layout.addWidget(self.combo_stt_engine)
 
-        layout.addWidget(grp_audio)
+        lbl_aud = QLabel("Whisper provides offline speech-to-text without cloud dependencies.")
+        lbl_aud.setStyleSheet("color: #64748b; font-size: 11px;")
+        lbl_aud.setWordWrap(True)
+        audio_layout.addWidget(lbl_aud)
+        audio_layout.addStretch()
+
+        row_extra.addWidget(grp_audio)
+
+        layout.addLayout(row_extra)
         layout.addStretch()
         return widget
 
