@@ -128,11 +128,17 @@ class DocumentsView(QWidget):
 
         actions_layout.addSpacing(12)
 
-        self.btn_add_to_ai = QPushButton("Add Docs to AI")
-        self.btn_add_to_ai.setIcon(IconHelper.get_icon("ai", 16))
-        self.btn_add_to_ai.setToolTip("Submit selected document to AI knowledge base")
-        self.btn_add_to_ai.clicked.connect(self._add_to_ai)
-        actions_layout.addWidget(self.btn_add_to_ai)
+        self.btn_process_pending = QPushButton("Process Pending")
+        self.btn_process_pending.setIcon(IconHelper.get_icon("ai", 16))
+        self.btn_process_pending.setToolTip("Process all pending document embeddings in the background")
+        self.btn_process_pending.clicked.connect(self._process_pending_embeddings)
+        actions_layout.addWidget(self.btn_process_pending)
+
+        self.btn_retry_failed = QPushButton("Retry Failed")
+        self.btn_retry_failed.setIcon(IconHelper.get_icon("refresh", 16))
+        self.btn_retry_failed.setToolTip("Retry embedding generation for all failed documents")
+        self.btn_retry_failed.clicked.connect(self._retry_failed_embeddings)
+        actions_layout.addWidget(self.btn_retry_failed)
 
         self.btn_gdrive = QPushButton("Collect Gdrive Files")
         self.btn_gdrive.setIcon(IconHelper.get_icon("cloud", 16))
@@ -145,7 +151,7 @@ class DocumentsView(QWidget):
 
         # 4. Full-width Documents Table matching original reference screenshot
         self.table = QTableWidget()
-        self.table.setColumnCount(6)
+        self.table.setColumnCount(7)
         self.table.setHorizontalHeaderLabels([
             "ProjectName",
             "DocumentName",
@@ -153,16 +159,18 @@ class DocumentsView(QWidget):
             "DocumentURI",
             "Desc",
             "AddedOn",
+            "AI Status",
         ])
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
         self.table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Interactive)
         self.table.horizontalHeader().setSectionResizeMode(4, QHeaderView.ResizeMode.Stretch)
-        self.table.setColumnWidth(0, 150)
-        self.table.setColumnWidth(1, 230)
-        self.table.setColumnWidth(2, 110)
-        self.table.setColumnWidth(3, 200)
-        self.table.setColumnWidth(4, 220)
-        self.table.setColumnWidth(5, 110)
+        self.table.setColumnWidth(0, 140)
+        self.table.setColumnWidth(1, 210)
+        self.table.setColumnWidth(2, 100)
+        self.table.setColumnWidth(3, 190)
+        self.table.setColumnWidth(4, 210)
+        self.table.setColumnWidth(5, 100)
+        self.table.setColumnWidth(6, 120)
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
         self.table.setAlternatingRowColors(True)
@@ -270,6 +278,9 @@ class DocumentsView(QWidget):
         action_edit = menu.addAction(IconHelper.get_icon("edit", 16), "Edit Document...")
         action_edit.triggered.connect(self._open_edit_doc_dialog)
 
+        action_ai = menu.addAction(IconHelper.get_icon("ai", 16), "Process / Retry AI Embedding")
+        action_ai.triggered.connect(self._process_selected_embedding)
+
         action_delete = menu.addAction(IconHelper.get_icon("delete", 16), "Delete Document")
         action_delete.triggered.connect(self._delete_document)
 
@@ -321,7 +332,27 @@ class DocumentsView(QWidget):
                 date_item = QTableWidgetItem(d.AddedOn or "")
                 date_item.setData(Qt.ItemDataRole.UserRole, d.DocumentID)
 
-                for item in (proj_item, name_item, cat_item, uri_item, desc_item, date_item):
+                # Embedding Status Column
+                status_str = getattr(d, "EmbeddingStatus", None) or "PENDING"
+                status_err = getattr(d, "EmbeddingError", None)
+                status_item = QTableWidgetItem(status_str)
+                status_item.setData(Qt.ItemDataRole.UserRole, d.DocumentID)
+                status_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+
+                if status_str == "COMPLETED":
+                    status_item.setForeground(Qt.GlobalColor.darkGreen)
+                    status_item.setToolTip("Document embedded and indexed for AskMe Q&A.")
+                elif status_str == "FAILED":
+                    status_item.setForeground(Qt.GlobalColor.red)
+                    status_item.setToolTip(f"Embedding failed: {status_err or 'Error'}\nRight-click or click 'Retry Failed' to retry.")
+                elif status_str == "PROCESSING":
+                    status_item.setForeground(Qt.GlobalColor.blue)
+                    status_item.setToolTip("Processing embedding in background...")
+                else:  # PENDING
+                    status_item.setForeground(Qt.GlobalColor.darkYellow)
+                    status_item.setToolTip("Embedding pending. Click 'Process Pending' to index.")
+
+                for item in (proj_item, name_item, cat_item, uri_item, desc_item, date_item, status_item):
                     item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
 
                 self.table.setItem(row, 0, proj_item)
@@ -330,6 +361,7 @@ class DocumentsView(QWidget):
                 self.table.setItem(row, 3, uri_item)
                 self.table.setItem(row, 4, desc_item)
                 self.table.setItem(row, 5, date_item)
+                self.table.setItem(row, 6, status_item)
         finally:
             self.table.setUpdatesEnabled(True)
             self.table.blockSignals(False)
@@ -355,18 +387,64 @@ class DocumentsView(QWidget):
         self.combo_cat_filter.setCurrentIndex(0)
         self.load_data()
 
-    def _add_to_ai(self):
+    def _process_pending_embeddings(self):
+        """Processes all documents currently in PENDING embedding status."""
+        pending_docs = DataRepository.get_documents_by_embedding_status("PENDING")
+        if not pending_docs:
+            QMessageBox.information(self, "No Pending Documents", "All documents are already indexed or completed.")
+            return
+
+        self.btn_process_pending.setEnabled(False)
+        from src.background.embedding_worker import EmbeddingWorker
+        self._worker = EmbeddingWorker(parent=self)
+        self._worker.document_finished.connect(lambda doc_id, name, ok, err: self.load_data())
+        self._worker.all_completed.connect(self._on_embeddings_batch_finished)
+        self._worker.start()
+
+    def _retry_failed_embeddings(self):
+        """Manually resets and retries all FAILED documents."""
+        failed_docs = DataRepository.get_documents_by_embedding_status("FAILED")
+        if not failed_docs:
+            QMessageBox.information(self, "No Failed Documents", "There are no failed documents to retry.")
+            return
+
+        failed_ids = [d.DocumentID for d in failed_docs]
+        for d in failed_docs:
+            DataRepository.update_document_embedding_status(d.DocumentID, "PENDING", None)
+        self.load_data()
+
+        self.btn_retry_failed.setEnabled(False)
+        from src.background.embedding_worker import EmbeddingWorker
+        self._worker = EmbeddingWorker(target_doc_ids=failed_ids, parent=self)
+        self._worker.document_finished.connect(lambda doc_id, name, ok, err: self.load_data())
+        self._worker.all_completed.connect(self._on_embeddings_batch_finished)
+        self._worker.start()
+
+    def _process_single_embedding(self):
+        """Processes or retries embedding for the selected document."""
         doc_id = self._get_selected_doc_id()
         if not doc_id:
-            QMessageBox.information(self, "Select Document", "Please select a document to add to the AI index.")
+            QMessageBox.information(self, "Select Document", "Please select a document.")
             return
-        doc = DataRepository.get_document_by_id(doc_id)
-        if doc:
-            QMessageBox.information(
-                self,
-                "AI Knowledge Index",
-                f"Document '{doc.DocumentName}' has been added to the AI knowledge index.",
-            )
+
+        DataRepository.update_document_embedding_status(doc_id, "PENDING", None)
+        self.load_data()
+
+        from src.background.embedding_worker import EmbeddingWorker
+        self._worker = EmbeddingWorker(target_doc_ids=[doc_id], parent=self)
+        self._worker.document_finished.connect(lambda d_id, name, ok, err: self.load_data())
+        self._worker.all_completed.connect(self._on_embeddings_batch_finished)
+        self._worker.start()
+
+    def _on_embeddings_batch_finished(self, total: int, succeeded: int):
+        self.btn_process_pending.setEnabled(True)
+        self.btn_retry_failed.setEnabled(True)
+        self.load_data()
+        QMessageBox.information(
+            self,
+            "Embedding Indexing Complete",
+            f"Processed {total} document(s): {succeeded} completed successfully.",
+        )
 
     def _collect_gdrive(self):
         QMessageBox.information(

@@ -224,7 +224,97 @@ class SettingsView(QWidget):
         layout.setContentsMargins(16, 16, 16, 16)
         layout.setSpacing(12)
 
-        grp_gemini = QGroupBox("Google Gemini Configuration")
+        # 1. OpenRouter Configuration (Primary AskMe Provider)
+        grp_openrouter = QGroupBox("OpenRouter AI Assistant Configuration (AskMe)")
+        or_layout = QVBoxLayout(grp_openrouter)
+        or_layout.setSpacing(8)
+
+        self.chk_openrouter_enable = QCheckBox("Enable OpenRouter for AskMe AI Assistant & Document Q&A")
+        self.chk_openrouter_enable.setStyleSheet("font-weight: bold; color: #1e3a8a;")
+        or_layout.addWidget(self.chk_openrouter_enable)
+
+        or_form = QFormLayout()
+        or_form.setSpacing(8)
+
+        # API Key row with show/hide toggle
+        key_layout = QHBoxLayout()
+        self.edit_openrouter_key = QLineEdit()
+        self.edit_openrouter_key.setEchoMode(QLineEdit.EchoMode.Password)
+        self.edit_openrouter_key.setPlaceholderText("sk-or-v1-...")
+        key_layout.addWidget(self.edit_openrouter_key)
+
+        self.btn_toggle_key = QPushButton("Show")
+        self.btn_toggle_key.setFixedWidth(60)
+        self.btn_toggle_key.clicked.connect(self._toggle_key_visibility)
+        key_layout.addWidget(self.btn_toggle_key)
+        or_form.addRow("OpenRouter API Key:", key_layout)
+
+        # Model Selector
+        self.combo_openrouter_model = QComboBox()
+        self.combo_openrouter_model.setEditable(True)
+        self.combo_openrouter_model.addItems([
+            "anthropic/claude-3.5-sonnet",
+            "openai/gpt-4o-mini",
+            "openai/gpt-4o",
+            "google/gemini-2.0-flash-001",
+            "meta-llama/llama-3.3-70b-instruct",
+            "deepseek/deepseek-chat",
+            "qwen/qwen-2.5-72b-instruct",
+        ])
+        or_form.addRow("Preferred Model:", self.combo_openrouter_model)
+        or_layout.addLayout(or_form)
+
+        test_row = QHBoxLayout()
+        self.btn_test_openrouter = QPushButton("Test OpenRouter Connection")
+        self.btn_test_openrouter.setIcon(IconHelper.get_icon("refresh", 16))
+        self.btn_test_openrouter.clicked.connect(self._test_openrouter_connection)
+        test_row.addWidget(self.btn_test_openrouter)
+
+        self.lbl_test_result = QLabel("")
+        self.lbl_test_result.setStyleSheet("font-weight: 500;")
+        test_row.addWidget(self.lbl_test_result)
+        test_row.addStretch()
+        or_layout.addLayout(test_row)
+
+        layout.addWidget(grp_openrouter)
+
+        # 2. Local Document Embedding Configuration
+        grp_embed = QGroupBox("Local Document Embedding Engine (100% On-Device RAG)")
+        embed_layout = QVBoxLayout(grp_embed)
+        embed_layout.setSpacing(8)
+
+        lbl_embed_info = QLabel(
+            "Embeddings are computed locally on your device without sending document contents to external APIs."
+        )
+        lbl_embed_info.setStyleSheet("color: #64748b; font-size: 12px;")
+        embed_layout.addWidget(lbl_embed_info)
+
+        emb_form = QFormLayout()
+        self.edit_embedding_model = QLineEdit()
+        self.edit_embedding_model.setText("Qwen/Qwen3-Embedding-0.6B")
+        emb_form.addRow("Local Model Name:", self.edit_embedding_model)
+
+        self.edit_embedding_version = QLineEdit()
+        self.edit_embedding_version.setText("1.0")
+        emb_form.addRow("Model Version:", self.edit_embedding_version)
+        embed_layout.addLayout(emb_form)
+
+        # Process pending button and status
+        proc_row = QHBoxLayout()
+        self.btn_process_embeddings = QPushButton("Process Pending Embeddings Now")
+        self.btn_process_embeddings.setIcon(IconHelper.get_icon("ai", 16))
+        self.btn_process_embeddings.clicked.connect(self._process_pending_embeddings)
+        proc_row.addWidget(self.btn_process_embeddings)
+
+        self.lbl_pending_status = QLabel("")
+        proc_row.addWidget(self.lbl_pending_status)
+        proc_row.addStretch()
+        embed_layout.addLayout(proc_row)
+
+        layout.addWidget(grp_embed)
+
+        # 3. Google Gemini Configuration (Optional Fallback)
+        grp_gemini = QGroupBox("Google Gemini Configuration (Optional)")
         gemini_layout = QVBoxLayout(grp_gemini)
 
         gemini_layout.addWidget(QLabel("Gemini API Key (or set GEMINI_API_KEY environment variable):"))
@@ -240,6 +330,7 @@ class SettingsView(QWidget):
 
         layout.addWidget(grp_gemini)
 
+        # 4. Speech & Audio
         grp_audio = QGroupBox("Speech & Transcription")
         audio_layout = QVBoxLayout(grp_audio)
 
@@ -368,6 +459,70 @@ class SettingsView(QWidget):
         layout.addStretch()
         return widget
 
+    def _toggle_key_visibility(self):
+        if self.edit_openrouter_key.echoMode() == QLineEdit.EchoMode.Password:
+            self.edit_openrouter_key.setEchoMode(QLineEdit.EchoMode.Normal)
+            self.btn_toggle_key.setText("Hide")
+        else:
+            self.edit_openrouter_key.setEchoMode(QLineEdit.EchoMode.Password)
+            self.btn_toggle_key.setText("Show")
+
+    def _test_openrouter_connection(self):
+        key = self.edit_openrouter_key.text().strip()
+        model = self.combo_openrouter_model.currentText().strip()
+        if not key:
+            self.lbl_test_result.setStyleSheet("color: #dc2626; font-weight: bold;")
+            self.lbl_test_result.setText("Please enter an OpenRouter API key.")
+            return
+
+        self.lbl_test_result.setStyleSheet("color: #2563eb;")
+        self.lbl_test_result.setText("Testing connection...")
+        QApplication.processEvents()
+
+        from src.ai.openrouter_client import OpenRouterClient
+        client = OpenRouterClient(api_key=key, model=model, enabled=True)
+        ok, msg = client.test_connection()
+        if ok:
+            self.lbl_test_result.setStyleSheet("color: #16a34a; font-weight: bold;")
+            self.lbl_test_result.setText("Connection successful! Key and model verified.")
+        else:
+            self.lbl_test_result.setStyleSheet("color: #dc2626; font-weight: bold;")
+            self.lbl_test_result.setText(f"Failed: {msg[:60]}...")
+
+    def _process_pending_embeddings(self):
+        self.btn_process_embeddings.setEnabled(False)
+        self.lbl_pending_status.setStyleSheet("color: #2563eb;")
+        self.lbl_pending_status.setText("Processing document embeddings in background...")
+
+        from src.background.embedding_worker import EmbeddingWorker
+        self._worker = EmbeddingWorker(parent=self)
+
+        def on_finished(doc_id, name, success, err):
+            if success:
+                self.lbl_pending_status.setText(f"Indexed: {name}")
+            else:
+                self.lbl_pending_status.setText(f"Failed: {name}")
+
+        def on_all(total, succeeded):
+            self.btn_process_embeddings.setEnabled(True)
+            self.lbl_pending_status.setStyleSheet("color: #16a34a; font-weight: bold;")
+            self.lbl_pending_status.setText(f"Completed! {succeeded}/{total} documents indexed.")
+            self._update_pending_count()
+
+        self._worker.document_finished.connect(on_finished)
+        self._worker.all_completed.connect(on_all)
+        self._worker.start()
+
+    def _update_pending_count(self):
+        try:
+            pending = DataRepository.get_documents_by_embedding_status("PENDING")
+            failed = DataRepository.get_documents_by_embedding_status("FAILED")
+            p_len, f_len = len(pending), len(failed)
+            self.lbl_pending_status.setStyleSheet("color: #475569;")
+            self.lbl_pending_status.setText(f"Queue: {p_len} pending, {f_len} failed")
+        except Exception:
+            pass
+
     def load_settings(self):
         """Populates watch folders and active configurations."""
         self.list_watchfolders.clear()
@@ -390,6 +545,25 @@ class SettingsView(QWidget):
             self.spin_idle_threshold.setValue(w_cfg["wellness_idle_timeout_sec"])
         except Exception as e:
             logger.error(f"Error loading wellness settings: {e}")
+
+        # Load OpenRouter & Embedding Settings
+        try:
+            from src.utils.config_manager import get_openrouter_settings, get_embedding_settings
+            or_cfg = get_openrouter_settings()
+            self.chk_openrouter_enable.setChecked(or_cfg["openrouter_enabled"])
+            self.edit_openrouter_key.setText(or_cfg["openrouter_api_key"])
+            idx = self.combo_openrouter_model.findText(or_cfg["openrouter_model"])
+            if idx >= 0:
+                self.combo_openrouter_model.setCurrentIndex(idx)
+            else:
+                self.combo_openrouter_model.setCurrentText(or_cfg["openrouter_model"])
+
+            emb_cfg = get_embedding_settings()
+            self.edit_embedding_model.setText(emb_cfg["embedding_model_name"])
+            self.edit_embedding_version.setText(emb_cfg["embedding_model_version"])
+            self._update_pending_count()
+        except Exception as e:
+            logger.error(f"Error loading OpenRouter/Embedding settings: {e}")
 
     def _add_watchfolder(self):
         folder = QFileDialog.getExistingDirectory(self, "Select Folder to Watch")
@@ -436,5 +610,20 @@ class SettingsView(QWidget):
             wellness_engine.reload_settings()
         except Exception as e:
             logger.error(f"Error saving wellness settings: {e}")
+
+        # Update OpenRouter & Embedding Settings
+        try:
+            from src.utils.config_manager import save_openrouter_settings, save_embedding_settings
+            save_openrouter_settings({
+                "openrouter_enabled": self.chk_openrouter_enable.isChecked(),
+                "openrouter_api_key": self.edit_openrouter_key.text().strip(),
+                "openrouter_model": self.combo_openrouter_model.currentText().strip(),
+            })
+            save_embedding_settings({
+                "embedding_model_name": self.edit_embedding_model.text().strip(),
+                "embedding_model_version": self.edit_embedding_version.text().strip(),
+            })
+        except Exception as e:
+            logger.error(f"Error saving OpenRouter/Embedding settings: {e}")
 
         QMessageBox.information(self, "Settings Saved", "Application settings updated successfully!")

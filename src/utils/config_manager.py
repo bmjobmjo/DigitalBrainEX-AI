@@ -49,6 +49,11 @@ DEFAULT_SETTINGS = {
     "sedentary_reminder_enabled": True,
     "sedentary_reminder_interval_min": 60,
     "wellness_idle_timeout_sec": 60,
+    "openrouter_enabled": False,
+    "openrouter_api_key": "",
+    "openrouter_model": "anthropic/claude-3.5-sonnet",
+    "embedding_model_name": "Qwen/Qwen3-Embedding-0.6B",
+    "embedding_model_version": "1.0",
 }
 
 
@@ -93,6 +98,39 @@ def get_wellness_settings() -> dict:
 def save_wellness_settings(wellness_cfg: dict):
     """Saves wellness settings and updates config."""
     save_settings(wellness_cfg)
+
+
+def get_openrouter_settings() -> dict:
+    """Returns OpenRouter configuration dictionary."""
+    settings = load_settings()
+    env_key = os.environ.get("OPENROUTER_API_KEY", "")
+    key = settings.get("openrouter_api_key", "") or env_key
+    return {
+        "openrouter_enabled": bool(settings.get("openrouter_enabled", False)),
+        "openrouter_api_key": key,
+        "openrouter_model": str(settings.get("openrouter_model", "anthropic/claude-3.5-sonnet")),
+    }
+
+
+def save_openrouter_settings(cfg: dict):
+    """Persists OpenRouter settings and updates os.environ."""
+    save_settings(cfg)
+    if cfg.get("openrouter_api_key"):
+        os.environ["OPENROUTER_API_KEY"] = cfg["openrouter_api_key"]
+
+
+def get_embedding_settings() -> dict:
+    """Returns local embedding model configuration dictionary."""
+    settings = load_settings()
+    return {
+        "embedding_model_name": str(settings.get("embedding_model_name", "Qwen/Qwen3-Embedding-0.6B")),
+        "embedding_model_version": str(settings.get("embedding_model_version", "1.0")),
+    }
+
+
+def save_embedding_settings(cfg: dict):
+    """Persists local embedding model configuration."""
+    save_settings(cfg)
 
 
 def get_doc_folder() -> str:

@@ -109,9 +109,31 @@ def seed_default_data_if_empty():
 
 
 def init_db():
-    """Initializes tables if not already present and seeds default data if brand new."""
+    """Initializes tables if not already present, runs schema migrations, and seeds default data."""
     engine = get_engine()
     Base.metadata.create_all(bind=engine)
+
+    # Safe SQLite schema migration for documents table
+    try:
+        with engine.connect() as conn:
+            from sqlalchemy import text
+            result = conn.execute(text("PRAGMA table_info(documents)"))
+            existing_cols = {row[1] for row in result.fetchall()}
+            
+            if "EmbeddingStatus" not in existing_cols:
+                conn.execute(text("ALTER TABLE documents ADD COLUMN EmbeddingStatus TEXT DEFAULT 'PENDING'"))
+                logger.info("Migrated schema: added EmbeddingStatus column to documents table.")
+            
+            if "EmbeddingError" not in existing_cols:
+                conn.execute(text("ALTER TABLE documents ADD COLUMN EmbeddingError TEXT"))
+                logger.info("Migrated schema: added EmbeddingError column to documents table.")
+
+            # Ensure index on document_chunks(file_id)
+            conn.execute(text("CREATE INDEX IF NOT EXISTS idx_chunks_file_id ON document_chunks(file_id)"))
+            conn.commit()
+    except Exception as e:
+        logger.warning(f"Schema migration warning: {e}")
+
     logger.info("Database schema initialized/verified.")
     seed_default_data_if_empty()
 

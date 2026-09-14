@@ -196,6 +196,7 @@ class DocumentEditorDialog(QDialog):
                     ProjectName=proj_name,
                     Desc=desc,
                     AddToLLM=add_to_llm,
+                    EmbeddingStatus="PENDING",
                 )
                 self.saved_doc_id = self.doc_id
             else:

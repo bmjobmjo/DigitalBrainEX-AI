@@ -88,6 +88,8 @@ class Document(Base):
     UploadRetry = Column(Integer, default=0)
     AddToLLM = Column(Integer, default=0)
     AudioStatus = Column(Integer, default=0)
+    EmbeddingStatus = Column(Text, default="PENDING")
+    EmbeddingError = Column(Text, nullable=True)
 
     @property
     def id(self):
@@ -249,6 +251,28 @@ class EmbeddingBackup(Base):
     Embedding = Column(LargeBinary, nullable=True)
     Date = Column(Text, nullable=True)
     ProjectID = Column(Text, nullable=True)
+
+
+class DocumentChunk(Base):
+    """
+    Fine-grained document chunks for local vector search and RAG.
+    Each chunk is linked to its parent document via file_id (DocumentID).
+    """
+    __tablename__ = "document_chunks"
+
+    chunk_id = Column(Integer, primary_key=True, autoincrement=True)
+    file_id = Column(Integer, nullable=False, index=True)
+    chunk_index = Column(Integer, nullable=False)
+    chunk_text = Column(Text, nullable=False)
+    embedding = Column(LargeBinary, nullable=False)
+    page_or_section = Column(Text, nullable=True)
+    model_name = Column(Text, nullable=True)
+    model_version = Column(Text, nullable=True)
+    created_at = Column(Text, nullable=True)
+
+    @property
+    def id(self):
+        return self.chunk_id
 
 
 class TrackTempFileToDocConv(Base):

@@ -19,42 +19,35 @@ class AskMeWorker(QThread):
         self.include_rag = include_rag
 
     def run(self):
-        client = GeminiClient()
-        if not client.is_configured:
+        from src.ai.openrouter_client import OpenRouterClient
+        from src.ai.rag_engine import RAGEngine
+
+        openrouter = OpenRouterClient()
+        if not openrouter.is_configured:
             self.response_ready.emit(
-                "⚠️ **Gemini API Key is not set.**\n\n"
-                "Please configure your `GEMINI_API_KEY` in the **Settings** view "
-                "or set it as a Windows environment variable to enable AI capabilities."
+                "⚠️ **OpenRouter Access is not configured or disabled.**\n\n"
+                "The AskMe assistant requires OpenRouter to be enabled and configured:\n\n"
+                "1. Go to **Settings** -> **GenAI & LLM** tab.\n"
+                "2. Check **Enable OpenRouter for AskMe AI Assistant**.\n"
+                "3. Enter your **OpenRouter API Key** and choose your preferred model.\n"
+                "4. Click **Save All Settings** to activate AskMe."
             )
             return
 
-        context_str = ""
-        if self.include_rag:
-            try:
-                # 1. Embed query
-                q_vec = client.get_embedding(self.prompt)
-                if q_vec is not None:
-                    # 2. Search top documents in vector database
-                    if not vector_search_engine._is_loaded:
-                        vector_search_engine.load_index()
-
-                    matches = vector_search_engine.search(q_vec, top_k=3)
-                    if matches:
-                        context_parts = []
-                        for m in matches:
-                            context_parts.append(
-                                f"Document: {m['file_name']} (Relevance: {m['score']:.2f})\n"
-                                f"Excerpt: {m.get('text_pointer', '')[:300]}"
-                            )
-                        context_str = "\n\n".join(context_parts)
-            except Exception as e:
-                logger.error(f"Error during RAG vector retrieval: {e}")
-
-        answer = client.generate_chat_response(
-            prompt=self.prompt,
-            context=context_str if context_str else None,
-        )
-        self.response_ready.emit(answer)
+        try:
+            if self.include_rag:
+                rag = RAGEngine(openrouter_client=openrouter)
+                answer = rag.query(self.prompt)
+            else:
+                messages = [
+                    {"role": "system", "content": "You are DigitalBrainEX AI assistant. Provide helpful, accurate, and structured answers."},
+                    {"role": "user", "content": self.prompt}
+                ]
+                answer = openrouter.generate_chat_completion(messages)
+            self.response_ready.emit(answer)
+        except Exception as e:
+            logger.error(f"Error during AskMe processing: {e}", exc_info=True)
+            self.response_ready.emit(f"❌ **Error generating response:**\n\n{str(e)}")
 
 
 class AskMeAgent(QObject):

@@ -19,6 +19,7 @@ from src.core.models import (
     Goal,
     WatchFolder,
     Embedding,
+    DocumentChunk,
     ClipboardHistory,
 )
 from src.core.crypto import encrypt_des3, decrypt_des3
@@ -284,6 +285,7 @@ class DataRepository:
         category: str = "General",
         doc_type: int = 0,
         language: str = "Plain",
+        embedding_status: str = "PENDING",
     ) -> Document:
         now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         now_int = int(datetime.now().timestamp())
@@ -302,6 +304,8 @@ class DataRepository:
                 AddedOnInt=now_int,
                 ModifiedDate=now_int,
                 DirtyFlag=1,
+                EmbeddingStatus=embedding_status,
+                EmbeddingError=None,
             )
             session.add(doc)
             session.flush()
@@ -326,6 +330,8 @@ class DataRepository:
         with get_db_session() as session:
             doc = session.query(Document).filter(Document.DocumentID == doc_id).first()
             if doc:
+                # Also clean up any fine-grained document chunks
+                session.query(DocumentChunk).filter(DocumentChunk.file_id == doc_id).delete()
                 session.delete(doc)
                 return True
             return False
@@ -334,6 +340,62 @@ class DataRepository:
     def get_document_categories() -> List[DocumentCategory]:
         with get_db_session() as session:
             return session.query(DocumentCategory).order_by(DocumentCategory.CatogoryName.asc()).all()
+
+    # -------------------------------------------------------------------------
+    # DOCUMENT EMBEDDING & CHUNKS (RAG)
+    # -------------------------------------------------------------------------
+    @staticmethod
+    def update_document_embedding_status(doc_id: int, status: str, error: Optional[str] = None) -> bool:
+        """Updates the embedding status and optional error message for a document."""
+        with get_db_session() as session:
+            doc = session.query(Document).filter(Document.DocumentID == doc_id).first()
+            if not doc:
+                return False
+            doc.EmbeddingStatus = status
+            doc.EmbeddingError = error
+            doc.ModifiedDate = int(datetime.now().timestamp())
+            return True
+
+    @staticmethod
+    def get_documents_by_embedding_status(status: str) -> List[Document]:
+        """Retrieves documents matching the given embedding status (e.g. 'PENDING', 'FAILED')."""
+        with get_db_session() as session:
+            return session.query(Document).filter(Document.EmbeddingStatus == status).order_by(Document.DocumentID.asc()).all()
+
+    @staticmethod
+    def save_document_chunks(file_id: int, chunks: List[Dict[str, Any]]) -> int:
+        """
+        Replaces any existing chunks for file_id with new chunks.
+        chunks: List of dicts containing: chunk_index, chunk_text, embedding, page_or_section, model_name, model_version.
+        """
+        now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        with get_db_session() as session:
+            session.query(DocumentChunk).filter(DocumentChunk.file_id == file_id).delete()
+            for ch in chunks:
+                chunk_obj = DocumentChunk(
+                    file_id=file_id,
+                    chunk_index=ch.get("chunk_index", 0),
+                    chunk_text=ch.get("chunk_text", ""),
+                    embedding=ch.get("embedding", b""),
+                    page_or_section=ch.get("page_or_section"),
+                    model_name=ch.get("model_name"),
+                    model_version=ch.get("model_version"),
+                    created_at=ch.get("created_at") or now_str,
+                )
+                session.add(chunk_obj)
+            return len(chunks)
+
+    @staticmethod
+    def get_chunks_for_file(file_id: int) -> List[DocumentChunk]:
+        """Returns all chunks for a specific document ordered by chunk_index."""
+        with get_db_session() as session:
+            return session.query(DocumentChunk).filter(DocumentChunk.file_id == file_id).order_by(DocumentChunk.chunk_index.asc()).all()
+
+    @staticmethod
+    def get_all_chunks() -> List[DocumentChunk]:
+        """Returns all document chunks across all indexed documents."""
+        with get_db_session() as session:
+            return session.query(DocumentChunk).all()
 
     # -------------------------------------------------------------------------
     # URLS

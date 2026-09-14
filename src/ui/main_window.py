@@ -118,6 +118,7 @@ class MainWindow(QMainWindow):
         self.ask_me_agent = AskMeAgent(self)
         self.view_ask_me.send_message_requested.connect(self.ask_me_agent.query)
         self.ask_me_agent.response_received.connect(self.view_ask_me.receive_ai_response)
+        self.view_ask_me.open_settings_requested.connect(lambda: (self._on_module_changed(11, "SETTINGS"), self.sidebar.set_current_module(11)))
 
         # Add to stack in index order matching SidebarWidget.MODULES
         self.view_stack.addWidget(self.view_projects)       # 0: Projects
@@ -187,6 +188,8 @@ class MainWindow(QMainWindow):
             active_widget = self.view_stack.widget(index)
             if hasattr(active_widget, "load_data"):
                 active_widget.load_data()
+            if hasattr(active_widget, "refresh_configuration_state"):
+                active_widget.refresh_configuration_state()
 
 
 
