@@ -118,8 +118,7 @@ class MainWindow(QMainWindow):
         from src.ai.agents import AskMeAgent
         self.ask_me_agent = AskMeAgent(self)
         self.view_ask_me.send_message_requested.connect(self.ask_me_agent.query)
-        self.ask_me_agent.response_received.connect(self.view_ask_me.receive_ai_response)
-        self.view_ask_me.open_settings_requested.connect(lambda: (self._on_module_changed(11, "SETTINGS"), self.sidebar.set_current_module(11)))
+        self.view_ask_me.open_settings_requested.connect(self._open_settings_for_genai)
 
         # Add to stack in index order matching SidebarWidget.MODULES
         self.view_stack.addWidget(self.view_projects)       # 0: Projects
@@ -238,6 +237,13 @@ class MainWindow(QMainWindow):
     def _on_blinker_clicked(self):
         self.show_and_activate()
         self.sidebar.select_module_by_name("Tasks")
+
+    def _open_settings_for_genai(self):
+        """Navigates to Settings and activates the GenAI & LLM tab."""
+        self.sidebar.set_current_module(11)
+        self._on_module_changed(11, "Settings")
+        if hasattr(self, "view_settings") and hasattr(self.view_settings, "tabs"):
+            self.view_settings.tabs.setCurrentIndex(2)
 
     def show_and_activate(self):
         """Restores window from tray and activates it."""

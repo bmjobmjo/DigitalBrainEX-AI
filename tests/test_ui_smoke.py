@@ -75,6 +75,27 @@ class TestUISmoke(unittest.TestCase):
         print("Smooth navigation verified across all 12 modules!")
         window.close()
 
+    def test_ask_me_configure_in_settings_button(self):
+        apply_theme(app)
+        window = MainWindow()
+        window.show()
+        app.processEvents()
+
+        # Switch to AskMe view
+        window.sidebar.select_module_by_name("AskMe")
+        app.processEvents()
+        self.assertEqual(window.view_stack.currentIndex(), 10)
+
+        # Click "Configure in Settings" button
+        window.view_ask_me.btn_open_settings.click()
+        app.processEvents()
+
+        # Verify it navigated to Settings view and GenAI & LLM tab (index 2)
+        self.assertEqual(window.view_stack.currentIndex(), 11)
+        self.assertEqual(window.view_settings.tabs.currentIndex(), 2)
+        print("AskMe Configure in Settings navigation verified!")
+        window.close()
+
 
 if __name__ == "__main__":
     unittest.main()

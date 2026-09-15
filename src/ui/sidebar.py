@@ -83,3 +83,11 @@ class SidebarWidget(QWidget):
             if tag.lower() == name.lower():
                 self.list_widget.setCurrentRow(row)
                 break
+
+    def set_current_module(self, module):
+        """Selects a module by its integer index or string tag/name."""
+        if isinstance(module, int):
+            if 0 <= module < len(self.MODULES):
+                self.list_widget.setCurrentRow(module)
+        elif isinstance(module, str):
+            self.select_module_by_name(module)
