@@ -32,6 +32,20 @@ def main():
     setup_logger()
     logger.info(f"Starting {APP_NAME} v{APP_VERSION}...")
 
+    # Initialize QApplication early for singleton IPC and GUI
+    app = QApplication(sys.argv)
+    app.setApplicationName(APP_NAME)
+    app.setApplicationVersion(APP_VERSION)
+    app.setQuitOnLastWindowClosed(False)  # Allows running in system tray
+
+    # Singleton check: ensure only one instance is active
+    from src.utils.single_instance import SingleInstanceManager
+    single_instance = SingleInstanceManager()
+    if single_instance.is_already_running():
+        logger.info("Another instance of DigitalBrainEX is already running. Activating existing instance...")
+        single_instance.notify_running_instance()
+        sys.exit(0)
+
     # Initialize SQLite database connection
     try:
         init_db()
@@ -40,6 +54,7 @@ def main():
         remove_old_db_backups(max_days=5)
     except Exception as e:
         logger.error(f"Fatal error initializing database: {e}", exc_info=True)
+        single_instance.cleanup()
         sys.exit(1)
 
     # Ensure running on interactive user desktop in Windows
@@ -56,12 +71,6 @@ def main():
     from src.utils.win32_helper import setup_windows_app_id, apply_native_window_icon
     setup_windows_app_id()
 
-    # Initialize QApplication
-    app = QApplication(sys.argv)
-    app.setApplicationName(APP_NAME)
-    app.setApplicationVersion(APP_VERSION)
-    app.setQuitOnLastWindowClosed(False)  # Allows running in system tray
-
     # Set authentic application window icon
     from PyQt6.QtGui import QIcon
     from src.config import ASSETS_DIR
@@ -77,13 +86,17 @@ def main():
     # Create Main Window
     main_window = MainWindow()
 
+    # Start Singleton IPC server to handle future instance activations
+    single_instance.start_server(on_activate_callback=lambda args: main_window.show_and_activate())
+    app.aboutToQuit.connect(single_instance.cleanup)
+
     # Create System Tray Manager
     tray_manager = TrayManager()
     tray_manager.show_main_window_requested.connect(main_window.show_and_activate)
     tray_manager.screenshot_requested.connect(main_window._on_screenshot_requested)
     tray_manager.clipboard_history_requested.connect(main_window._open_clipboard_history)
     tray_manager.settings_requested.connect(lambda: (main_window.show_and_activate(), main_window.sidebar.select_module_by_name("Settings")))
-    tray_manager.exit_requested.connect(lambda: (tray_manager.hide(), app.quit()))
+    tray_manager.exit_requested.connect(lambda: (single_instance.cleanup(), tray_manager.hide(), app.quit()))
 
     # Background Services
     from src.background.clipboard_monitor import ClipboardMonitor

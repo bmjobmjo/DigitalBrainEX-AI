@@ -246,10 +246,27 @@ class MainWindow(QMainWindow):
             self.view_settings.tabs.setCurrentIndex(2)
 
     def show_and_activate(self):
-        """Restores window from tray and activates it."""
-        self.showNormal()
-        self.activateWindow()
+        """Restores window from tray or minimized state and brings to foreground."""
+        import sys
+        if self.isMinimized():
+            self.showNormal()
+        else:
+            self.show()
+
+        self.setWindowState(self.windowState() & ~Qt.WindowState.WindowMinimized | Qt.WindowState.WindowActive)
         self.raise_()
+        self.activateWindow()
+
+        if sys.platform == "win32":
+            try:
+                import ctypes
+                hwnd = int(self.winId())
+                # SW_RESTORE = 9
+                ctypes.windll.user32.ShowWindow(hwnd, 9)
+                ctypes.windll.user32.SetForegroundWindow(hwnd)
+            except Exception:
+                pass
+
         import os
         from src.utils.win32_helper import apply_native_window_icon
         icon_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "assets", "app_icon.ico"))
