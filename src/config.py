@@ -53,7 +53,7 @@ if not DEFAULT_DB_PATH.exists():
 
 # Application metadata
 APP_NAME = "DigitalBrainEX AI"
-APP_VERSION = "2.0.0"
+APP_VERSION = "2.1.0"
 APP_AUTHOR = "DigitalBrainEX Team"
 
 # Database Configuration

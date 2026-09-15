@@ -25,8 +25,12 @@ class SingleInstanceManager(QObject):
     """
     activation_requested = pyqtSignal(list)  # Emits list of command-line arguments
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, app_id: str = None):
         super().__init__(parent)
+        self.app_id = app_id or MUTEX_GUID
+        self.win32_mutex_name = f"Global\\DigitalBrainEX_AI_Mutex_{self.app_id}"
+        self.local_mutex_name = f"DigitalBrainEX_AI_Mutex_{self.app_id}"
+        self.ipc_server_name = f"DigitalBrainEX_AI_IPC_{self.app_id}"
         self._server = None
         self._mutex_handle = None
         self._is_primary = False
@@ -40,7 +44,7 @@ class SingleInstanceManager(QObject):
             try:
                 import ctypes
                 # Try Global mutex first, fall back to local session mutex
-                handle = ctypes.windll.kernel32.CreateMutexW(None, True, WIN32_MUTEX_NAME)
+                handle = ctypes.windll.kernel32.CreateMutexW(None, True, self.win32_mutex_name)
                 last_err = ctypes.windll.kernel32.GetLastError()
                 if last_err == 183:  # ERROR_ALREADY_EXISTS
                     # An instance is already running
@@ -49,7 +53,7 @@ class SingleInstanceManager(QObject):
                     return True
                 elif not handle:
                     # Retry with local session namespace if Global was denied
-                    handle = ctypes.windll.kernel32.CreateMutexW(None, True, LOCAL_MUTEX_NAME)
+                    handle = ctypes.windll.kernel32.CreateMutexW(None, True, self.local_mutex_name)
                     last_err = ctypes.windll.kernel32.GetLastError()
                     if last_err == 183:
                         if handle:
@@ -64,7 +68,7 @@ class SingleInstanceManager(QObject):
 
         # Fallback / cross-platform IPC socket probe
         probe_socket = QLocalSocket()
-        probe_socket.connectToServer(IPC_SERVER_NAME)
+        probe_socket.connectToServer(self.ipc_server_name)
         connected = probe_socket.waitForConnected(300)
         if connected:
             probe_socket.disconnectFromServer()
@@ -82,7 +86,7 @@ class SingleInstanceManager(QObject):
 
         try:
             socket = QLocalSocket()
-            socket.connectToServer(IPC_SERVER_NAME)
+            socket.connectToServer(self.ipc_server_name)
             if socket.waitForConnected(1000):
                 payload = json.dumps({"action": "ACTIVATE", "args": args}).encode("utf-8")
                 socket.write(payload)
@@ -133,14 +137,14 @@ class SingleInstanceManager(QObject):
             self.activation_requested.connect(on_activate_callback)
 
         # Clean up any abandoned socket from a prior unclean termination
-        QLocalServer.removeServer(IPC_SERVER_NAME)
+        QLocalServer.removeServer(self.ipc_server_name)
 
         self._server = QLocalServer(self)
         self._server.newConnection.connect(self._handle_client_connection)
 
-        started = self._server.listen(IPC_SERVER_NAME)
+        started = self._server.listen(self.ipc_server_name)
         if started:
-            logger.info(f"Singleton IPC server listening on: {IPC_SERVER_NAME}")
+            logger.info(f"Singleton IPC server listening on: {self.ipc_server_name}")
         else:
             logger.warning(f"Could not start Singleton IPC server: {self._server.errorString()}")
         return started
@@ -189,7 +193,7 @@ class SingleInstanceManager(QObject):
         if self._server:
             try:
                 self._server.close()
-                QLocalServer.removeServer(IPC_SERVER_NAME)
+                QLocalServer.removeServer(self.ipc_server_name)
             except Exception:
                 pass
             self._server = None

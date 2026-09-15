@@ -17,11 +17,12 @@ app = QApplication.instance() or QApplication(["test_single_instance"])
 class TestSingleInstance(unittest.TestCase):
 
     def test_mutex_detection_and_cleanup(self):
-        primary = SingleInstanceManager()
+        test_id = f"TestMutex_{os.getpid()}"
+        primary = SingleInstanceManager(app_id=test_id)
         is_running = primary.is_already_running()
         self.assertFalse(is_running, "First instance should be primary")
 
-        secondary = SingleInstanceManager()
+        secondary = SingleInstanceManager(app_id=test_id)
         is_second_running = secondary.is_already_running()
         self.assertTrue(is_second_running, "Second instance should detect primary running")
 
@@ -29,7 +30,7 @@ class TestSingleInstance(unittest.TestCase):
         primary.cleanup()
 
         # After cleanup, fresh instance should be primary
-        fresh = SingleInstanceManager()
+        fresh = SingleInstanceManager(app_id=test_id)
         self.assertFalse(fresh.is_already_running(), "Fresh instance after cleanup should be primary")
         fresh.cleanup()
         print("Mutex detection and cleanup verified!")
@@ -38,14 +39,15 @@ class TestSingleInstance(unittest.TestCase):
         import subprocess
         import time
 
+        test_id = f"TestIPC_{os.getpid()}"
         # Start primary in background process
-        proc = subprocess.Popen([sys.executable, '-c', '''
+        proc = subprocess.Popen([sys.executable, '-c', f'''
 from PyQt6.QtWidgets import QApplication
 from src.utils.single_instance import SingleInstanceManager
 import sys
 
 app = QApplication([])
-mgr = SingleInstanceManager()
+mgr = SingleInstanceManager(app_id="{test_id}")
 mgr.is_already_running()
 mgr.start_server(on_activate_callback=lambda args: print("ACTIVATION_RESULT:" + str(args), flush=True))
 print("PRIMARY_READY", flush=True)
@@ -64,13 +66,13 @@ sys.exit(app.exec())
             self.assertTrue(ready, "Primary process should report readiness")
 
             # Run secondary in another process
-            res = subprocess.run([sys.executable, '-c', '''
+            res = subprocess.run([sys.executable, '-c', f'''
 from PyQt6.QtWidgets import QApplication
 from src.utils.single_instance import SingleInstanceManager
 import sys
 
 app = QApplication([])
-mgr = SingleInstanceManager()
+mgr = SingleInstanceManager(app_id="{test_id}")
 if mgr.is_already_running():
     mgr.notify_running_instance(args=["test_file.pdf", "--minimized"])
 '''], capture_output=True, text=True)
