@@ -619,32 +619,22 @@ class SettingsView(QWidget):
             QMessageBox.information(self, "No Pending Documents", "All documents in the system already have embeddings!")
             return
 
-        self.btn_process_embeddings.setEnabled(False)
-        self.btn_cancel_embeddings.setVisible(True)
-        self.prog_embeddings.setVisible(True)
-        self.prog_embeddings.setRange(0, len(pending))
-        self.prog_embeddings.setValue(0)
-        self.lbl_pending_status.setStyleSheet("color: #2563eb;")
-        self.lbl_pending_status.setText(f"Starting indexing for {len(pending)} documents...")
-
+        from src.ui.dialogs.embedding_progress_dialog import EmbeddingProgressDialog
         from src.background.embedding_worker import EmbeddingWorker
+
+        dlg = EmbeddingProgressDialog(total_docs=len(pending), title="Processing Document Embeddings", parent=self)
         self._worker = EmbeddingWorker(parent=self)
 
-        def on_progress(current, total, doc_name, status_msg):
-            self.prog_embeddings.setValue(current)
-            self.lbl_pending_status.setText(f"[{current}/{total}] {doc_name[:35]}: {status_msg}")
+        dlg.cancel_requested.connect(self._worker.cancel)
+        self._worker.overall_progress.connect(dlg.update_overall_progress)
+        self._worker.item_progress.connect(dlg.update_item_progress)
+        self._worker.activity_logged.connect(dlg.append_log)
+        self._worker.all_completed.connect(dlg.on_finished)
 
-        def on_all(total, succeeded):
-            self.btn_process_embeddings.setEnabled(True)
-            self.btn_cancel_embeddings.setVisible(False)
-            self.prog_embeddings.setVisible(False)
-            self.lbl_pending_status.setStyleSheet("color: #16a34a; font-weight: bold;")
-            self.lbl_pending_status.setText(f"Completed! {succeeded}/{total} documents indexed.")
-            self._update_pending_count()
-
-        self._worker.progress_updated.connect(on_progress)
-        self._worker.all_completed.connect(on_all)
         self._worker.start()
+        dlg.exec()
+
+        self._update_pending_count()
 
     def _cancel_embeddings(self):
         if hasattr(self, "_worker") and self._worker and self._worker.isRunning():

@@ -25,6 +25,7 @@ from PyQt6.QtCore import Qt, pyqtSignal
 from src.core.repository import DataRepository
 from src.core.event_bus import event_bus, EVT_PROJECT_CHANGED
 from src.ui.dialogs.document_editor_dlg import DocumentEditorDialog
+from src.ui.dialogs.embedding_progress_dialog import EmbeddingProgressDialog
 from src.ui.icons import IconHelper
 from src.config import resolve_document_path, open_path_or_url, show_in_file_manager
 from src.core.logger import logger
@@ -421,31 +422,29 @@ class DocumentsView(QWidget):
         self._start_embedding_worker(len(failed_ids), "Retrying Failed Embeddings", target_ids=failed_ids)
 
     def _start_embedding_worker(self, total: int, title: str, target_ids=None):
-        """Launches the background embedding worker with an interactive QProgressDialog."""
-        progress_dialog = QProgressDialog("Initializing embedding indexing...", "Cancel Indexing", 0, total, self)
-        progress_dialog.setWindowTitle(title)
-        progress_dialog.setWindowModality(Qt.WindowModality.WindowModal)
-        progress_dialog.setMinimumDuration(0)
-        progress_dialog.setValue(0)
-        progress_dialog.show()
+        """Launches the background embedding worker with a rich modal progress dialog."""
+        from src.background.embedding_worker import EmbeddingWorker
 
         self.btn_process_pending.setEnabled(False)
         self.btn_retry_failed.setEnabled(False)
 
-        from src.background.embedding_worker import EmbeddingWorker
+        dlg = EmbeddingProgressDialog(total_docs=total, title=title, parent=self)
         self._worker = EmbeddingWorker(target_doc_ids=target_ids, parent=self)
-        self._progress_dialog = progress_dialog
+        self._progress_dialog = dlg
 
-        progress_dialog.canceled.connect(self._worker.cancel)
+        dlg.cancel_requested.connect(self._worker.cancel)
+        self._worker.overall_progress.connect(dlg.update_overall_progress)
+        self._worker.item_progress.connect(dlg.update_item_progress)
+        self._worker.activity_logged.connect(dlg.append_log)
+        self._worker.all_completed.connect(dlg.on_finished)
 
-        def on_progress(current, total_cnt, doc_name, status_msg):
-            if self._progress_dialog and not self._progress_dialog.wasCanceled():
-                self._progress_dialog.setValue(current)
-                self._progress_dialog.setLabelText(f"[{current}/{total_cnt}] {doc_name[:40]}\n{status_msg}")
-
-        self._worker.progress_updated.connect(on_progress)
-        self._worker.all_completed.connect(self._on_embeddings_batch_finished)
         self._worker.start()
+        dlg.exec()
+
+        self._progress_dialog = None
+        self.btn_process_pending.setEnabled(True)
+        self.btn_retry_failed.setEnabled(True)
+        self.load_data()
 
     def _process_single_embedding(self):
         """Processes or retries embedding for the selected document."""
@@ -455,29 +454,7 @@ class DocumentsView(QWidget):
             return
 
         DataRepository.update_document_embedding_status(doc_id, "PENDING", None)
-        self.load_data()
-
-        from src.background.embedding_worker import EmbeddingWorker
-        self._worker = EmbeddingWorker(target_doc_ids=[doc_id], parent=self)
-        self._worker.document_finished.connect(lambda d_id, name, ok, err: self.load_data())
-        self._worker.all_completed.connect(lambda total, succ: QMessageBox.information(
-            self, "Single Embedding Complete", f"Document #{doc_id} processed: {'Success' if succ else 'Failed'}"
-        ))
-        self._worker.start()
-
-    def _on_embeddings_batch_finished(self, total: int, succeeded: int):
-        if hasattr(self, "_progress_dialog") and self._progress_dialog:
-            self._progress_dialog.close()
-            self._progress_dialog = None
-
-        self.btn_process_pending.setEnabled(True)
-        self.btn_retry_failed.setEnabled(True)
-        self.load_data()
-        QMessageBox.information(
-            self,
-            "Embedding Indexing Complete",
-            f"Processed {total} document(s): {succeeded} completed successfully.",
-        )
+        self._start_embedding_worker(1, "Processing Document Embedding", target_ids=[doc_id])
 
     def _collect_gdrive(self):
         QMessageBox.information(

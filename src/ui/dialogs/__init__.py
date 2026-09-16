@@ -9,6 +9,7 @@ from src.ui.dialogs.url_editor_dlg import UrlEditorDialog
 from src.ui.dialogs.code_snippet_editor_dlg import CodeSnippetEditorDialog
 from src.ui.dialogs.minutes_editor_dlg import MinutesEditorDialog
 from src.ui.dialogs.secret_editor_dlg import SecretEditorDialog
+from src.ui.dialogs.embedding_progress_dialog import EmbeddingProgressDialog
 
 __all__ = [
     "NoteEditorDialog",
@@ -19,4 +20,5 @@ __all__ = [
     "CodeSnippetEditorDialog",
     "MinutesEditorDialog",
     "SecretEditorDialog",
+    "EmbeddingProgressDialog",
 ]
