@@ -1,4 +1,4 @@
-﻿"""
+"""
 Unit tests for DocumentParser multi-format extraction and EmbeddingWorker enhancements.
 Verifies parsing for PDF, DOCX, PPTX, RTF, XLSX, CSV, PlainNotes text, and cancellation.
 """
@@ -169,6 +169,46 @@ class TestEmbeddingWorkerEnhancements:
         chunks = DataRepository.get_chunks_for_file(doc_id)
         assert len(chunks) >= 1
         assert "Patient observation" in chunks[0].chunk_text
+
+    @patch("src.ai.local_embeddings.LocalEmbeddingManager.embed_texts")
+    def test_worker_embeds_file_and_user_notes_simultaneously(self, mock_embed):
+        mock_embed.side_effect = lambda texts: np.zeros((len(texts), 384), dtype=np.float32)
+
+        with tempfile.NamedTemporaryFile("w", suffix=".txt", delete=False, encoding="utf-8") as f:
+            f.write("Document file body content regarding Q3 deliverables.")
+            tmp_path = f.name
+
+        try:
+            doc = DataRepository.create_document(
+                name="Q3 Deliverables Report",
+                uri=tmp_path,
+                desc="Executive Summary of Q3 targets.",
+                notes="Client agreed to expedited delivery on Oct 1.",
+                category="Reports"
+            )
+            doc_id = doc.DocumentID
+
+            worker = EmbeddingWorker(target_doc_ids=[doc_id])
+            finished_events = []
+            worker.document_finished.connect(lambda d_id, name, ok, err: finished_events.append((d_id, ok, err)))
+            worker.run()
+
+            assert len(finished_events) == 1
+            assert finished_events[0][1] is True
+
+            chunks = DataRepository.get_chunks_for_file(doc_id)
+            assert len(chunks) >= 2
+
+            # Verify both file content and user notes are present in separate chunks
+            texts = [c.chunk_text for c in chunks]
+            sections = [c.page_or_section for c in chunks]
+
+            assert any("Document file body content" in t for t in texts), "File content must be indexed"
+            assert any("Client agreed to expedited delivery" in t for t in texts), "User notes must be indexed"
+            assert "User Notes & Description" in sections, "User notes must have citation section"
+        finally:
+            if os.path.exists(tmp_path):
+                os.remove(tmp_path)
 
     def test_worker_cancellation(self):
         worker = EmbeddingWorker(target_doc_ids=[999999])

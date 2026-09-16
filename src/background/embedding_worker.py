@@ -77,23 +77,37 @@ class EmbeddingWorker(QThread):
                     except Exception as pe:
                         logger.warning(f"File parser warning for {doc_name} ({resolved_path}): {pe}")
 
-                # 2. Fallback to document text/notes (for PlainNotes, URLs, images, or metadata)
+                # 2. Extract and append chunks from user notes and description if present
+                notes_parts = []
+                if doc.Desc and doc.Desc.strip():
+                    notes_parts.append(f"Description:\n{doc.Desc.strip()}")
+                if doc.Notes and doc.Notes.strip():
+                    notes_parts.append(f"Notes:\n{doc.Notes.strip()}")
+
+                if notes_parts:
+                    notes_text = "\n\n".join(notes_parts).strip()
+                    note_chunks = DocumentParser.parse_and_chunk_text(
+                        notes_text,
+                        source_title="User Notes & Description"
+                    )
+                    start_idx = len(raw_chunks)
+                    for i, nc in enumerate(note_chunks):
+                        nc["chunk_index"] = start_idx + i
+                        raw_chunks.append(nc)
+
+                # 3. If neither file nor notes yielded chunks, fallback to title and category metadata
                 if not raw_chunks:
                     parts = []
                     if doc.DocumentName and doc.DocumentName.strip():
                         parts.append(f"Document: {doc.DocumentName.strip()}")
                     if doc.Category and doc.Category.strip():
                         parts.append(f"Category: {doc.Category.strip()}")
-                    if doc.Desc and doc.Desc.strip():
-                        parts.append(f"Description:\n{doc.Desc.strip()}")
-                    if doc.Notes and doc.Notes.strip():
-                        parts.append(f"Notes:\n{doc.Notes.strip()}")
 
                     meta_text = "\n\n".join(parts).strip()
                     if meta_text:
                         raw_chunks = DocumentParser.parse_and_chunk_text(
                             meta_text,
-                            source_title=f"Notes / Metadata: {doc_name}"
+                            source_title=f"Metadata: {doc_name}"
                         )
 
                 if not raw_chunks:
