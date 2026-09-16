@@ -354,6 +354,20 @@ class DataRepository:
         with get_db_session() as session:
             return session.query(DocumentCategory).order_by(DocumentCategory.CatogoryName.asc()).all()
 
+    @staticmethod
+    def get_documents_needing_gdrive_upload() -> List[Document]:
+        """Retrieves documents where DocGUID is null or empty and have a non-empty DocumentURI."""
+        with get_db_session() as session:
+            return (
+                session.query(Document)
+                .filter(
+                    (Document.DocGUID == None) | (Document.DocGUID == ""),
+                    Document.DocumentURI != None,
+                    Document.DocumentURI != "",
+                )
+                .all()
+            )
+
     # -------------------------------------------------------------------------
     # DOCUMENT EMBEDDING & CHUNKS (RAG)
     # -------------------------------------------------------------------------

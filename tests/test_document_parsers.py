@@ -151,24 +151,30 @@ class TestEmbeddingWorkerEnhancements:
             category="PlainNotes"
         )
         doc_id = doc.DocumentID
-        assert doc.EmbeddingStatus == "PENDING"
+        try:
+            assert doc.EmbeddingStatus == "PENDING"
 
-        # Run worker for this document
-        worker = EmbeddingWorker(target_doc_ids=[doc_id])
-        finished_events = []
-        worker.document_finished.connect(lambda d_id, name, ok, err: finished_events.append((d_id, ok, err)))
-        worker.run()
+            # Run worker for this document
+            worker = EmbeddingWorker(target_doc_ids=[doc_id])
+            finished_events = []
+            worker.document_finished.connect(lambda d_id, name, ok, err: finished_events.append((d_id, ok, err)))
+            worker.run()
 
-        assert len(finished_events) == 1
-        assert finished_events[0][1] is True, f"Failed with: {finished_events[0][2]}"
+            assert len(finished_events) == 1
+            assert finished_events[0][1] is True, f"Failed with: {finished_events[0][2]}"
 
-        # Verify DB status
-        updated_doc = DataRepository.get_document_by_id(doc_id)
-        assert updated_doc.EmbeddingStatus == "COMPLETED"
+            # Verify DB status
+            updated_doc = DataRepository.get_document_by_id(doc_id)
+            assert updated_doc.EmbeddingStatus == "COMPLETED"
 
-        chunks = DataRepository.get_chunks_for_file(doc_id)
-        assert len(chunks) >= 1
-        assert "Patient observation" in chunks[0].chunk_text
+            chunks = DataRepository.get_chunks_for_file(doc_id)
+            assert len(chunks) >= 1
+            assert "Patient observation" in chunks[0].chunk_text
+        finally:
+            try:
+                DataRepository.delete_document(doc_id)
+            except Exception:
+                pass
 
     @patch("src.ai.local_embeddings.LocalEmbeddingManager.embed_texts")
     def test_worker_embeds_file_and_user_notes_simultaneously(self, mock_embed):
@@ -178,6 +184,7 @@ class TestEmbeddingWorkerEnhancements:
             f.write("Document file body content regarding Q3 deliverables.")
             tmp_path = f.name
 
+        doc_id = None
         try:
             doc = DataRepository.create_document(
                 name="Q3 Deliverables Report",
@@ -207,6 +214,11 @@ class TestEmbeddingWorkerEnhancements:
             assert any("Client agreed to expedited delivery" in t for t in texts), "User notes must be indexed"
             assert "User Notes & Description" in sections, "User notes must have citation section"
         finally:
+            if doc_id:
+                try:
+                    DataRepository.delete_document(doc_id)
+                except Exception:
+                    pass
             if os.path.exists(tmp_path):
                 os.remove(tmp_path)
 

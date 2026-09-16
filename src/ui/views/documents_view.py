@@ -142,9 +142,9 @@ class DocumentsView(QWidget):
         self.btn_retry_failed.clicked.connect(self._retry_failed_embeddings)
         actions_layout.addWidget(self.btn_retry_failed)
 
-        self.btn_gdrive = QPushButton("Collect Gdrive Files")
+        self.btn_gdrive = QPushButton("Sync to GDrive")
         self.btn_gdrive.setIcon(IconHelper.get_icon("cloud", 16))
-        self.btn_gdrive.setToolTip("Collect or synchronize files from Google Drive")
+        self.btn_gdrive.setToolTip("Backup and synchronize local documents to Google Drive (folder: DigitalBrainEX/Documents)")
         self.btn_gdrive.clicked.connect(self._collect_gdrive)
         actions_layout.addWidget(self.btn_gdrive)
 
@@ -285,7 +285,7 @@ class DocumentsView(QWidget):
         action_edit.triggered.connect(self._open_edit_doc_dialog)
 
         action_ai = menu.addAction(IconHelper.get_icon("ai", 16), "Process / Retry AI Embedding")
-        action_ai.triggered.connect(self._process_selected_embedding)
+        action_ai.triggered.connect(self._process_single_embedding)
 
         action_delete = menu.addAction(IconHelper.get_icon("delete", 16), "Delete Document")
         action_delete.triggered.connect(self._delete_document)
@@ -457,11 +457,88 @@ class DocumentsView(QWidget):
         self._start_embedding_worker(1, "Processing Document Embedding", target_ids=[doc_id])
 
     def _collect_gdrive(self):
-        QMessageBox.information(
-            self,
-            "Google Drive Sync",
-            "Google Drive sync initialized. Files will be organized in your configured Document storage directory.",
-        )
+        """Initiates Google Drive document backup matching C# GDocumentsSync."""
+        from src.services.gdrive_service import gdrive_service
+
+        if not gdrive_service.is_configured():
+            QMessageBox.warning(
+                self,
+                "Google Drive Not Configured",
+                "Google credentials file 'gdrivecred.json' was not found.\n\n"
+                "Please ensure gdrivecred.json is present in the application folder.",
+            )
+            return
+
+        if not gdrive_service.is_authenticated():
+            confirm = QMessageBox.question(
+                self,
+                "Google Drive Sign-In Required",
+                "Google Drive authentication is required to upload document backups.\n\n"
+                "Would you like to open your browser to sign in to Google Drive now?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            )
+            if confirm == QMessageBox.StandardButton.Yes:
+                try:
+                    if not gdrive_service.authenticate(interactive=True):
+                        QMessageBox.warning(self, "Sign-In Incomplete", "Google Drive sign-in was not completed.")
+                        return
+                except Exception as ae:
+                    QMessageBox.critical(self, "Authentication Error", f"Google Drive authentication failed:\n{ae}")
+                    return
+            else:
+                return
+
+        self._start_gdrive_upload_worker()
+
+    def _start_gdrive_upload_worker(self):
+        """Launches the background worker to upload pending documents to Google Drive."""
+        from src.background.gdrive_worker import GDriveUploadWorker
+
+        prog = QProgressDialog("Preparing Google Drive backup...", "Cancel", 0, 100, self)
+        prog.setWindowTitle("Google Drive Document Backup")
+        prog.setWindowModality(Qt.WindowModality.WindowModal)
+        prog.setMinimumDuration(0)
+        prog.setValue(0)
+        prog.show()
+
+        self._gdrive_worker = GDriveUploadWorker(parent=self)
+        prog.canceled.connect(self._gdrive_worker.cancel)
+
+        def on_prog(curr, tot, name, msg):
+            if prog and not prog.wasCanceled():
+                prog.setMaximum(max(1, tot))
+                prog.setValue(curr)
+                prog.setLabelText(f"[{curr}/{tot}] {name[:35]}\n{msg}")
+
+        def on_done(tot, succ, errs):
+            if prog:
+                prog.close()
+            self.load_data()
+            if tot == 0:
+                QMessageBox.information(
+                    self,
+                    "Google Drive Backup",
+                    "All local documents are already backed up to Google Drive!",
+                )
+            elif errs:
+                err_preview = "\n".join(errs[:3])
+                QMessageBox.warning(
+                    self,
+                    "Google Drive Backup Complete (with warnings)",
+                    f"Uploaded {succ} of {tot} documents to Google Drive (folder: DigitalBrainEX/Documents).\n\n"
+                    f"Warnings:\n{err_preview}",
+                )
+            else:
+                QMessageBox.information(
+                    self,
+                    "Google Drive Backup Complete",
+                    f"Successfully backed up {succ} of {tot} documents to Google Drive!\n\n"
+                    "Target folder: DigitalBrainEX/Documents",
+                )
+
+        self._gdrive_worker.progress_updated.connect(on_prog)
+        self._gdrive_worker.all_completed.connect(on_done)
+        self._gdrive_worker.start()
 
     def _delete_document(self):
         doc_id = self._get_selected_doc_id()

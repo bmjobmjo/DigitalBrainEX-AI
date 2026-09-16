@@ -2,6 +2,8 @@
 Dedicated Document Editor Popup Dialog for DigitalBrainEX AI.
 Matches original AddDocumentFrm.cs popup dialog.
 """
+import os
+import shutil
 from typing import Optional
 from PyQt6.QtWidgets import (
     QDialog,
@@ -19,6 +21,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt
 
 from src.core.repository import DataRepository
+from src.config import get_doc_folder
 from src.core.logger import logger
 
 
@@ -178,19 +181,57 @@ class DocumentEditorDialog(QDialog):
             self.edit_name.setFocus()
             return
 
-        uri = self.edit_uri.text().strip()
+        raw_uri = self.edit_uri.text().strip().strip('"').strip("'")
         cat = self.combo_cat.currentText().strip() or "General"
         proj_id = self.combo_proj.currentData() or 0
         proj_name = self.combo_proj.currentText()
         desc = self.edit_desc.toPlainText()
         add_to_llm = 1 if self.chk_llm.isChecked() else 0
 
+        final_uri = raw_uri
+        # If it's a local file path, copy it into the project folder DocFolder/{proj_id}/{filename}
+        if raw_uri:
+            is_url = (
+                raw_uri.lower().startswith("http://")
+                or raw_uri.lower().startswith("https://")
+                or raw_uri.lower().startswith("drive.google.com")
+                or raw_uri.lower().startswith("docs.google.com")
+            )
+            is_already_rel = raw_uri.startswith("\\") or raw_uri.startswith("/")
+
+            if not is_url and not is_already_rel and os.path.exists(raw_uri) and os.path.isfile(raw_uri):
+                try:
+                    doc_folder = get_doc_folder()
+                    proj_subfolder = os.path.join(doc_folder, str(proj_id))
+                    os.makedirs(proj_subfolder, exist_ok=True)
+
+                    filename = os.path.basename(raw_uri)
+                    dest_path = os.path.join(proj_subfolder, filename)
+
+                    if os.path.abspath(raw_uri).lower() != os.path.abspath(dest_path).lower():
+                        if os.path.exists(dest_path):
+                            reply = QMessageBox.question(
+                                self,
+                                "File Exists",
+                                f"A file named '{filename}' already exists in the project folder.\nDo you want to overwrite it?",
+                                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                            )
+                            if reply == QMessageBox.StandardButton.Yes:
+                                shutil.copy2(raw_uri, dest_path)
+                        else:
+                            shutil.copy2(raw_uri, dest_path)
+                        logger.info(f"Copied document '{filename}' from {raw_uri} to {dest_path}")
+
+                    final_uri = f"\\{proj_id}\\{filename}"
+                except Exception as ce:
+                    logger.warning(f"Could not copy file to project folder, preserving original path: {ce}")
+
         try:
             if self.doc_id:
                 DataRepository.update_document(
                     self.doc_id,
                     DocumentName=name,
-                    DocumentURI=uri,
+                    DocumentURI=final_uri,
                     Category=cat,
                     PojectID=proj_id,
                     ProjectName=proj_name,
@@ -202,7 +243,7 @@ class DocumentEditorDialog(QDialog):
             else:
                 new_doc = DataRepository.create_document(
                     name=name,
-                    uri=uri,
+                    uri=final_uri,
                     desc=desc,
                     project_id=proj_id,
                     project_name=proj_name,
