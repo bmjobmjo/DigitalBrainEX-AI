@@ -60,6 +60,17 @@ class EmbeddingWorker(QThread):
             return
 
         emb_mgr = get_local_embedding_manager()
+        self.item_progress.emit("Embedding Model", f"Loading embedding model ({emb_mgr.model_name})...", 5, 100)
+        self.activity_logged.emit(f"Loading embedding model ({emb_mgr.model_name})...")
+        try:
+            emb_mgr._ensure_model()
+            self.activity_logged.emit(f"✓ Model loaded: {emb_mgr.model_name}")
+        except Exception as me:
+            err_msg = f"Failed to initialize embedding model: {me}"
+            logger.error(err_msg, exc_info=True)
+            self.activity_logged.emit(f"❌ {err_msg}")
+            self.all_completed.emit(total, 0)
+            return
 
         for idx, doc in enumerate(docs_to_process, 1):
             if self._is_cancelled:

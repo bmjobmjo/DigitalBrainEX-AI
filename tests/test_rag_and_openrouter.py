@@ -242,10 +242,12 @@ class TestEmbeddingWorker:
 
             chunks = DataRepository.get_chunks_for_file(doc.DocumentID)
             assert len(chunks) >= 1
-
-            # Cleanup
-            DataRepository.delete_document(doc.DocumentID)
         finally:
+            if 'doc' in locals() and doc:
+                try:
+                    DataRepository.delete_document(doc.DocumentID)
+                except Exception:
+                    pass
             if os.path.exists(tmp_path):
                 os.remove(tmp_path)
 

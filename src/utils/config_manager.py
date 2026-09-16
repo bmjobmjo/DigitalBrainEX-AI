@@ -52,7 +52,7 @@ DEFAULT_SETTINGS = {
     "openrouter_enabled": False,
     "openrouter_api_key": "",
     "openrouter_model": "anthropic/claude-3.5-sonnet",
-    "embedding_model_name": "Qwen/Qwen3-Embedding-0.6B",
+    "embedding_model_name": "sentence-transformers/all-MiniLM-L6-v2",
     "embedding_model_version": "1.0",
 }
 

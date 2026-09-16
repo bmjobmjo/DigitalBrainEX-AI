@@ -11,6 +11,12 @@ pkg_root = Path(__file__).resolve().parent.parent
 if str(pkg_root) not in sys.path:
     sys.path.insert(0, str(pkg_root))
 
+# Ensure PyTorch C++ runtime DLLs (c10.dll, etc.) are registered on the main thread in Windows
+try:
+    import torch
+except Exception:
+    pass
+
 from PyQt6.QtWidgets import QApplication
 from PyQt6.QtCore import Qt
 from src.config import APP_NAME, APP_VERSION

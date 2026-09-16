@@ -6,6 +6,13 @@ without external network API calls. Handles vector serialization and similarity 
 from typing import List, Optional
 import threading
 import numpy as np
+
+# Ensure PyTorch DLL directories are properly registered in Windows process space
+try:
+    import torch
+except Exception as _torch_init_err:
+    pass
+
 from src.utils.config_manager import get_embedding_settings
 from src.core.logger import logger
 
@@ -31,7 +38,11 @@ class LocalEmbeddingManager:
             return
 
         settings = get_embedding_settings()
-        self._model_name = model_name or settings.get("embedding_model_name", "Qwen/Qwen3-Embedding-0.6B")
+        configured = model_name or settings.get("embedding_model_name", "sentence-transformers/all-MiniLM-L6-v2")
+        # If set to Qwen, normalize to standard all-MiniLM-L6-v2
+        if "qwen" in configured.lower():
+            configured = "sentence-transformers/all-MiniLM-L6-v2"
+        self._model_name = configured
         self._model_version = settings.get("embedding_model_version", "1.0")
         self._model = None
         self._dimension = 384
@@ -46,7 +57,7 @@ class LocalEmbeddingManager:
         return self._model_version
 
     def _ensure_model(self):
-        """Lazy loads the sentence-transformers model."""
+        """Lazy loads or automatically downloads the sentence-transformers model."""
         if self._model is not None:
             return
 
@@ -55,16 +66,18 @@ class LocalEmbeddingManager:
                 return
 
             try:
+                # Ensure torch is imported in current thread context
+                import torch
                 from sentence_transformers import SentenceTransformer
                 logger.info(f"Loading local embedding model: {self._model_name}...")
                 self._model = SentenceTransformer(self._model_name)
-                # Determine embedding dimension
                 test_emb = self._model.encode("test", normalize_embeddings=True)
                 self._dimension = len(test_emb)
                 logger.info(f"Local embedding model {self._model_name} loaded successfully (dimension={self._dimension}).")
             except Exception as e:
-                logger.warning(f"Could not load primary model '{self._model_name}': {e}. Attempting fallback to 'all-MiniLM-L6-v2'...")
+                logger.warning(f"Could not load primary model '{self._model_name}': {e}. Falling back to 'sentence-transformers/all-MiniLM-L6-v2'...")
                 try:
+                    import torch
                     from sentence_transformers import SentenceTransformer
                     fallback_name = "sentence-transformers/all-MiniLM-L6-v2"
                     self._model = SentenceTransformer(fallback_name)
