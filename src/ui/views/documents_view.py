@@ -16,6 +16,7 @@ from PyQt6.QtWidgets import (
     QHeaderView,
     QComboBox,
     QMessageBox,
+    QProgressDialog,
     QMenu,
     QApplication,
 )
@@ -402,12 +403,8 @@ class DocumentsView(QWidget):
             QMessageBox.information(self, "No Pending Documents", "All documents are already indexed or completed.")
             return
 
-        self.btn_process_pending.setEnabled(False)
-        from src.background.embedding_worker import EmbeddingWorker
-        self._worker = EmbeddingWorker(parent=self)
-        self._worker.document_finished.connect(lambda doc_id, name, ok, err: self.load_data())
-        self._worker.all_completed.connect(self._on_embeddings_batch_finished)
-        self._worker.start()
+        total_pending = len(pending_docs)
+        self._start_embedding_worker(total_pending, "Processing Pending Embeddings")
 
     def _retry_failed_embeddings(self):
         """Manually resets and retries all FAILED documents."""
@@ -421,10 +418,32 @@ class DocumentsView(QWidget):
             DataRepository.update_document_embedding_status(d.DocumentID, "PENDING", None)
         self.load_data()
 
+        self._start_embedding_worker(len(failed_ids), "Retrying Failed Embeddings", target_ids=failed_ids)
+
+    def _start_embedding_worker(self, total: int, title: str, target_ids=None):
+        """Launches the background embedding worker with an interactive QProgressDialog."""
+        progress_dialog = QProgressDialog("Initializing embedding indexing...", "Cancel Indexing", 0, total, self)
+        progress_dialog.setWindowTitle(title)
+        progress_dialog.setWindowModality(Qt.WindowModality.WindowModal)
+        progress_dialog.setMinimumDuration(0)
+        progress_dialog.setValue(0)
+        progress_dialog.show()
+
+        self.btn_process_pending.setEnabled(False)
         self.btn_retry_failed.setEnabled(False)
+
         from src.background.embedding_worker import EmbeddingWorker
-        self._worker = EmbeddingWorker(target_doc_ids=failed_ids, parent=self)
-        self._worker.document_finished.connect(lambda doc_id, name, ok, err: self.load_data())
+        self._worker = EmbeddingWorker(target_doc_ids=target_ids, parent=self)
+        self._progress_dialog = progress_dialog
+
+        progress_dialog.canceled.connect(self._worker.cancel)
+
+        def on_progress(current, total_cnt, doc_name, status_msg):
+            if self._progress_dialog and not self._progress_dialog.wasCanceled():
+                self._progress_dialog.setValue(current)
+                self._progress_dialog.setLabelText(f"[{current}/{total_cnt}] {doc_name[:40]}\n{status_msg}")
+
+        self._worker.progress_updated.connect(on_progress)
         self._worker.all_completed.connect(self._on_embeddings_batch_finished)
         self._worker.start()
 
@@ -441,10 +460,16 @@ class DocumentsView(QWidget):
         from src.background.embedding_worker import EmbeddingWorker
         self._worker = EmbeddingWorker(target_doc_ids=[doc_id], parent=self)
         self._worker.document_finished.connect(lambda d_id, name, ok, err: self.load_data())
-        self._worker.all_completed.connect(self._on_embeddings_batch_finished)
+        self._worker.all_completed.connect(lambda total, succ: QMessageBox.information(
+            self, "Single Embedding Complete", f"Document #{doc_id} processed: {'Success' if succ else 'Failed'}"
+        ))
         self._worker.start()
 
     def _on_embeddings_batch_finished(self, total: int, succeeded: int):
+        if hasattr(self, "_progress_dialog") and self._progress_dialog:
+            self._progress_dialog.close()
+            self._progress_dialog = None
+
         self.btn_process_pending.setEnabled(True)
         self.btn_retry_failed.setEnabled(True)
         self.load_data()

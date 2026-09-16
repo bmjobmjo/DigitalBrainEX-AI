@@ -23,6 +23,7 @@ from PyQt6.QtWidgets import (
     QScrollArea,
     QFrame,
     QSizePolicy,
+    QProgressBar,
 )
 from PyQt6.QtCore import Qt, QTimer
 from src.config import DB_PATH, TEMP_PAD_DIR, SCREENSHOTS_DIR, APP_VERSION, DEFAULT_THEME
@@ -385,17 +386,32 @@ class SettingsView(QWidget):
         # Process pending button and status
         proc_row = QHBoxLayout()
         proc_row.setSpacing(10)
-        self.btn_process_embeddings = QPushButton("Process Pending Embeddings Now")
+        self.btn_process_embeddings = QPushButton("Index All Unindexed Documents Now")
         self.btn_process_embeddings.setIcon(IconHelper.get_icon("ai", 16))
         self.btn_process_embeddings.setMinimumHeight(28)
         self.btn_process_embeddings.clicked.connect(self._process_pending_embeddings)
         proc_row.addWidget(self.btn_process_embeddings)
+
+        self.btn_cancel_embeddings = QPushButton("Cancel")
+        self.btn_cancel_embeddings.setIcon(IconHelper.get_icon("delete", 14))
+        self.btn_cancel_embeddings.setMinimumHeight(28)
+        self.btn_cancel_embeddings.setVisible(False)
+        self.btn_cancel_embeddings.clicked.connect(self._cancel_embeddings)
+        proc_row.addWidget(self.btn_cancel_embeddings)
 
         self.lbl_pending_status = QLabel("")
         self.lbl_pending_status.setStyleSheet("color: #475569; font-weight: 500;")
         proc_row.addWidget(self.lbl_pending_status)
         proc_row.addStretch()
         embed_layout.addLayout(proc_row)
+
+        self.prog_embeddings = QProgressBar()
+        self.prog_embeddings.setRange(0, 100)
+        self.prog_embeddings.setValue(0)
+        self.prog_embeddings.setTextVisible(True)
+        self.prog_embeddings.setFixedHeight(18)
+        self.prog_embeddings.setVisible(False)
+        embed_layout.addWidget(self.prog_embeddings)
 
         layout.addWidget(grp_embed)
 
@@ -598,36 +614,53 @@ class SettingsView(QWidget):
             self.lbl_test_result.setText(f"Failed: {msg[:60]}...")
 
     def _process_pending_embeddings(self):
+        pending = DataRepository.get_documents_by_embedding_status("PENDING")
+        if not pending:
+            QMessageBox.information(self, "No Pending Documents", "All documents in the system already have embeddings!")
+            return
+
         self.btn_process_embeddings.setEnabled(False)
+        self.btn_cancel_embeddings.setVisible(True)
+        self.prog_embeddings.setVisible(True)
+        self.prog_embeddings.setRange(0, len(pending))
+        self.prog_embeddings.setValue(0)
         self.lbl_pending_status.setStyleSheet("color: #2563eb;")
-        self.lbl_pending_status.setText("Processing document embeddings in background...")
+        self.lbl_pending_status.setText(f"Starting indexing for {len(pending)} documents...")
 
         from src.background.embedding_worker import EmbeddingWorker
         self._worker = EmbeddingWorker(parent=self)
 
-        def on_finished(doc_id, name, success, err):
-            if success:
-                self.lbl_pending_status.setText(f"Indexed: {name}")
-            else:
-                self.lbl_pending_status.setText(f"Failed: {name}")
+        def on_progress(current, total, doc_name, status_msg):
+            self.prog_embeddings.setValue(current)
+            self.lbl_pending_status.setText(f"[{current}/{total}] {doc_name[:35]}: {status_msg}")
 
         def on_all(total, succeeded):
             self.btn_process_embeddings.setEnabled(True)
+            self.btn_cancel_embeddings.setVisible(False)
+            self.prog_embeddings.setVisible(False)
             self.lbl_pending_status.setStyleSheet("color: #16a34a; font-weight: bold;")
             self.lbl_pending_status.setText(f"Completed! {succeeded}/{total} documents indexed.")
             self._update_pending_count()
 
-        self._worker.document_finished.connect(on_finished)
+        self._worker.progress_updated.connect(on_progress)
         self._worker.all_completed.connect(on_all)
         self._worker.start()
+
+    def _cancel_embeddings(self):
+        if hasattr(self, "_worker") and self._worker and self._worker.isRunning():
+            self._worker.cancel()
+            self.lbl_pending_status.setStyleSheet("color: #d97706; font-weight: bold;")
+            self.lbl_pending_status.setText("Cancelling after current document completes...")
+            self.btn_cancel_embeddings.setEnabled(False)
 
     def _update_pending_count(self):
         try:
             pending = DataRepository.get_documents_by_embedding_status("PENDING")
             failed = DataRepository.get_documents_by_embedding_status("FAILED")
-            p_len, f_len = len(pending), len(failed)
+            completed = DataRepository.get_documents_by_embedding_status("COMPLETED")
+            c_len, p_len, f_len = len(completed), len(pending), len(failed)
             self.lbl_pending_status.setStyleSheet("color: #475569;")
-            self.lbl_pending_status.setText(f"Queue: {p_len} pending, {f_len} failed")
+            self.lbl_pending_status.setText(f"Indexed: {c_len} | Queue: {p_len} pending, {f_len} failed")
         except Exception:
             pass
 
