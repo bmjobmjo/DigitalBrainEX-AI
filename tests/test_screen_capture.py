@@ -167,7 +167,7 @@ class TestScreenCapture(unittest.TestCase):
         self.assertIsNotNone(tb.btn_save_dbx)
         self.assertIn("DBX", tb.btn_save_dbx.text())
         self.assertIsNotNone(tb.btn_done)
-        self.assertIn("Copy", tb.btn_done.text())
+        self.assertIn("Capture", tb.btn_done.text())
 
         # Verify signals can be emitted without errors
         save_file_emitted = []

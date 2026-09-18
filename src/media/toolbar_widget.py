@@ -145,10 +145,10 @@ class AnnotationToolbar(QWidget):
         self.btn_save_dbx.clicked.connect(self.save_dbx_requested.emit)
         layout.addWidget(self.btn_save_dbx)
 
-        # Copy & Quick Save button
-        self.btn_done = QPushButton("📋 Copy")
+        # Capture button
+        self.btn_done = QPushButton("✓ Capture")
         self.btn_done.setStyleSheet("background-color: #16a34a; color: #ffffff; font-weight: bold; border: 1px solid #16a34a;")
-        self.btn_done.setToolTip("Copy to Clipboard & Auto-Save (Enter / Ctrl+C)")
+        self.btn_done.setToolTip("Capture & Copy to Clipboard (Enter)")
         self.btn_done.clicked.connect(self.done_requested.emit)
         layout.addWidget(self.btn_done)
 
