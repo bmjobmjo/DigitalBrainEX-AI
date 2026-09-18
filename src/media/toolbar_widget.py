@@ -30,6 +30,8 @@ class AnnotationToolbar(QWidget):
     thickness_changed = pyqtSignal(int)
     undo_requested = pyqtSignal()
     done_requested = pyqtSignal()
+    save_file_requested = pyqtSignal()
+    save_dbx_requested = pyqtSignal()
     cancel_requested = pyqtSignal()
 
     def __init__(self, parent=None):
@@ -125,10 +127,28 @@ class AnnotationToolbar(QWidget):
         self.btn_undo.clicked.connect(self.undo_requested.emit)
         layout.addWidget(self.btn_undo)
 
-        # Done button
-        self.btn_done = QPushButton("✓ Capture")
+        # Separator
+        sep3 = QFrame()
+        sep3.setFrameShape(QFrame.Shape.VLine)
+        sep3.setStyleSheet("color: #cbd5e1;")
+        layout.addWidget(sep3)
+
+        # Save As File button
+        self.btn_save_file = QPushButton("💾 Save As...")
+        self.btn_save_file.setToolTip("Save Screenshot as File (Ctrl+S)")
+        self.btn_save_file.clicked.connect(self.save_file_requested.emit)
+        layout.addWidget(self.btn_save_file)
+
+        # Save to DigitalBrainEX button
+        self.btn_save_dbx = QPushButton("📥 Add to DBX")
+        self.btn_save_dbx.setToolTip("Save Screenshot to DigitalBrainEX Documents (Ctrl+D)")
+        self.btn_save_dbx.clicked.connect(self.save_dbx_requested.emit)
+        layout.addWidget(self.btn_save_dbx)
+
+        # Copy & Quick Save button
+        self.btn_done = QPushButton("📋 Copy")
         self.btn_done.setStyleSheet("background-color: #16a34a; color: #ffffff; font-weight: bold; border: 1px solid #16a34a;")
-        self.btn_done.setToolTip("Save & Copy Screenshot (Enter)")
+        self.btn_done.setToolTip("Copy to Clipboard & Auto-Save (Enter / Ctrl+C)")
         self.btn_done.clicked.connect(self.done_requested.emit)
         layout.addWidget(self.btn_done)
 

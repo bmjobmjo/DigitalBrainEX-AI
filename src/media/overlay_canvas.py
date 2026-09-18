@@ -3,9 +3,12 @@ Screenshot Annotation Overlay Canvas for DigitalBrainEX AI.
 Provides a transparent full-screen drawing canvas, 8-point sizing handles,
 vector shapes (Arrow, Rect, Ellipse, Pen, Text), and floating action toolbar.
 """
+import os
 import math
+from datetime import datetime
+from pathlib import Path
 from typing import List, Optional, Tuple
-from PyQt6.QtWidgets import QWidget, QApplication, QInputDialog, QLineEdit
+from PyQt6.QtWidgets import QWidget, QApplication, QInputDialog, QLineEdit, QFileDialog
 from PyQt6.QtGui import (
     QPainter,
     QColor,
@@ -234,6 +237,8 @@ class OverlayCanvas(QWidget):
         self.toolbar.thickness_changed.connect(self._on_thickness_changed)
         self.toolbar.undo_requested.connect(self._undo)
         self.toolbar.done_requested.connect(self._finalize_and_save)
+        self.toolbar.save_file_requested.connect(self._save_as_file)
+        self.toolbar.save_dbx_requested.connect(self._save_to_digitalbrainex)
         self.toolbar.cancel_requested.connect(self.close)
 
         # Inline Text Annotation Editor
@@ -551,7 +556,13 @@ class OverlayCanvas(QWidget):
             self.close()
         elif event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
             self._finalize_and_save()
-        elif event.key() == Qt.Key.Z and (event.modifiers() & Qt.KeyboardModifier.ControlModifier):
+        elif event.key() == Qt.Key.Key_S and (event.modifiers() & Qt.KeyboardModifier.ControlModifier):
+            self._save_as_file()
+        elif event.key() == Qt.Key.Key_D and (event.modifiers() & Qt.KeyboardModifier.ControlModifier):
+            self._save_to_digitalbrainex()
+        elif event.key() == Qt.Key.Key_C and (event.modifiers() & Qt.KeyboardModifier.ControlModifier):
+            self._finalize_and_save()
+        elif event.key() == Qt.Key.Key_Z and (event.modifiers() & Qt.KeyboardModifier.ControlModifier):
             self._undo()
         else:
             super().keyPressEvent(event)
@@ -598,8 +609,8 @@ class OverlayCanvas(QWidget):
 
         self.toolbar.move(gx, gy)
 
-    def _finalize_and_save(self):
-        """Renders the selection rectangle and all vector annotations, then saves to disk."""
+    def _render_current_selection(self) -> QPixmap:
+        """Renders the selection rectangle and all vector annotations onto a high-DPI pixmap."""
         self._commit_text_editor()
         target_rect = self._selection_rect.normalized()
         if target_rect.isEmpty():
@@ -630,9 +641,68 @@ class OverlayCanvas(QWidget):
             ann.draw(painter)
         painter.end()
 
-        # Save and copy
+        return rendered_pixmap
+
+    def _finalize_and_save(self):
+        """Renders the selection rectangle and annotations, auto-saves to screenshots directory, and copies to clipboard."""
+        rendered_pixmap = self._render_current_selection()
         saved_path = ScreenCaptureEngine.save_and_copy_screenshot(rendered_pixmap)
 
         self.toolbar.hide()
         self.close()
+        self.capture_completed.emit(saved_path)
+
+    def _save_as_file(self):
+        """Prompts Save File dialog to save the screenshot as an arbitrary file on disk."""
+        rendered_pixmap = self._render_current_selection()
+
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        default_name = f"Screenshot_{timestamp}.png"
+        pictures_dir = str(Path.home() / "Pictures")
+        default_path = os.path.join(pictures_dir, default_name)
+
+        # Temporarily hide overlay so the native file dialog gets proper focus on desktop
+        self.hide()
+        self.toolbar.hide()
+
+        target_file, _ = QFileDialog.getSaveFileName(
+            None,
+            "Save Screenshot to File",
+            default_path,
+            "PNG Image (*.png);;JPEG Image (*.jpg *.jpeg);;Bitmap Image (*.bmp);;All Files (*.*)",
+        )
+
+        if target_file:
+            saved_path = ScreenCaptureEngine.save_and_copy_screenshot(rendered_pixmap, target_filepath=target_file)
+            self.close()
+            self.capture_completed.emit(saved_path)
+        else:
+            # User cancelled file dialog - restore overlay so user doesn't lose their selection/annotations
+            self.show()
+            self.toolbar.show()
+            self.raise_()
+
+    def _save_to_digitalbrainex(self):
+        """Saves screenshot into DigitalBrainEX documents folder and opens DocumentEditorDialog."""
+        rendered_pixmap = self._render_current_selection()
+
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        default_name = f"Screenshot_{timestamp}.png"
+        saved_path = ScreenCaptureEngine.save_and_copy_screenshot(rendered_pixmap, filename_prefix="Screenshot")
+
+        # Close overlay canvas
+        self.toolbar.hide()
+        self.close()
+
+        # Open DocumentEditorDialog with pre-populated details
+        from src.ui.dialogs.document_editor_dlg import DocumentEditorDialog
+        dlg = DocumentEditorDialog(parent=None)
+        dlg.set_document_details(
+            name=default_name,
+            file_path=saved_path,
+            category="Screenshots",
+            desc=f"Desktop screenshot captured on {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+        )
+        dlg.exec()
+
         self.capture_completed.emit(saved_path)

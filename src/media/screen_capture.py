@@ -90,19 +90,33 @@ class ScreenCaptureEngine:
         pixmap: QPixmap,
         filename_prefix: str = "Screenshot",
         copy_to_clipboard: bool = True,
+        target_filepath: Optional[str] = None,
     ) -> str:
         """
-        Saves screenshot to SCREENSHOTS_DIR and copies it to Windows clipboard.
+        Saves screenshot to SCREENSHOTS_DIR (or target_filepath if provided) and copies to clipboard.
         Also records entry into ClipboardHistory database table.
         Returns the saved file path.
         """
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"{filename_prefix}_{timestamp}.png"
-        filepath = str(SCREENSHOTS_DIR / filename)
+        if target_filepath:
+            filepath = str(Path(target_filepath).resolve())
+            ext = os.path.splitext(filepath)[1].lower()
+            fmt = "PNG"
+            if ext in (".jpg", ".jpeg"):
+                fmt = "JPEG"
+            elif ext == ".bmp":
+                fmt = "BMP"
+        else:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"{filename_prefix}_{timestamp}.png"
+            filepath = str(SCREENSHOTS_DIR / filename)
+            fmt = "PNG"
+
+        # Ensure parent folder exists
+        os.makedirs(os.path.dirname(filepath), exist_ok=True)
 
         # Save to disk
-        pixmap.save(filepath, "PNG")
-        logger.info(f"Screenshot saved to: {filepath}")
+        pixmap.save(filepath, fmt)
+        logger.info(f"Screenshot saved to: {filepath} ({fmt})")
 
         # Copy to Windows clipboard
         if copy_to_clipboard:

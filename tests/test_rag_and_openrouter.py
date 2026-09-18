@@ -270,26 +270,30 @@ class TestRAGEngine:
             uri="dummy.txt",
             embedding_status="COMPLETED",
         )
-        fake_vec = np.array([1.0, 0.0, 0.0], dtype=np.float32)
-        DataRepository.save_document_chunks(doc.DocumentID, [{
-            "chunk_index": 0,
-            "chunk_text": "The entire database runs locally on SQLite.",
-            "embedding": LocalEmbeddingManager.vector_to_blob(fake_vec),
-            "page_or_section": "Page 1",
-            "model_name": "test-model",
-            "model_version": "1.0",
-        }])
+        fake_vec = np.zeros(384, dtype=np.float32)
+        fake_vec[0] = 1.0
+        try:
+            DataRepository.save_document_chunks(doc.DocumentID, [{
+                "chunk_index": 0,
+                "chunk_text": "The entire database runs locally on SQLite.",
+                "embedding": LocalEmbeddingManager.vector_to_blob(fake_vec),
+                "page_or_section": "Page 1",
+                "model_name": "test-model",
+                "model_version": "1.0",
+            }])
 
-        client = OpenRouterClient(api_key="sk-or-valid", enabled=True)
-        rag = RAGEngine(openrouter_client=client)
+            client = OpenRouterClient(api_key="sk-or-valid", enabled=True)
+            rag = RAGEngine(openrouter_client=client)
 
-        with patch.object(LocalEmbeddingManager, "embed_text") as mock_embed_text:
-            mock_embed_text.return_value = fake_vec  # matches 1.0 perfectly
-            answer = rag.query("Can this run without internet?")
+            with patch.object(LocalEmbeddingManager, "embed_text") as mock_embed_text:
+                mock_embed_text.return_value = fake_vec  # matches 1.0 perfectly
+                answer = rag.query("Can this run without internet?")
 
-        assert "[Doc: Test Offline Manual" in answer
-        assert mock_stage1.called
-        assert mock_stage5.called
-
-        # Clean up
-        DataRepository.delete_document(doc.DocumentID)
+            assert "[Doc: Test Offline Manual" in answer
+            assert mock_stage1.called
+            assert mock_stage5.called
+        finally:
+            try:
+                DataRepository.delete_document(doc.DocumentID)
+            except Exception:
+                pass

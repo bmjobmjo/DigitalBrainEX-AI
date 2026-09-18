@@ -140,6 +140,116 @@ class TestScreenCapture(unittest.TestCase):
         canvas.close()
         print("Text annotation entry and commit verified successfully!")
 
+    def test_save_and_copy_with_target_filepath(self):
+        import tempfile
+        pixmap = QPixmap(120, 80)
+        pixmap.fill(QColor(255, 100, 50))
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            # Test PNG
+            target_png = os.path.join(tmpdir, "custom_capture.png")
+            res_png = ScreenCaptureEngine.save_and_copy_screenshot(pixmap, target_filepath=target_png)
+            self.assertEqual(res_png, os.path.abspath(target_png))
+            self.assertTrue(os.path.exists(target_png))
+
+            # Test BMP
+            target_bmp = os.path.join(tmpdir, "custom_capture.bmp")
+            res_bmp = ScreenCaptureEngine.save_and_copy_screenshot(pixmap, target_filepath=target_bmp)
+            self.assertEqual(res_bmp, os.path.abspath(target_bmp))
+            self.assertTrue(os.path.exists(target_bmp))
+
+    def test_toolbar_buttons_and_signals(self):
+        from src.media.toolbar_widget import AnnotationToolbar
+        tb = AnnotationToolbar()
+
+        self.assertIsNotNone(tb.btn_save_file)
+        self.assertIn("Save As", tb.btn_save_file.text())
+        self.assertIsNotNone(tb.btn_save_dbx)
+        self.assertIn("DBX", tb.btn_save_dbx.text())
+        self.assertIsNotNone(tb.btn_done)
+        self.assertIn("Copy", tb.btn_done.text())
+
+        # Verify signals can be emitted without errors
+        save_file_emitted = []
+        tb.save_file_requested.connect(lambda: save_file_emitted.append(True))
+        tb.btn_save_file.click()
+        self.assertEqual(len(save_file_emitted), 1)
+
+        save_dbx_emitted = []
+        tb.save_dbx_requested.connect(lambda: save_dbx_emitted.append(True))
+        tb.btn_save_dbx.click()
+        self.assertEqual(len(save_dbx_emitted), 1)
+
+        tb.close()
+
+    def test_save_to_digitalbrainex_workflow(self):
+        from unittest.mock import patch
+
+        canvas = OverlayCanvas()
+        mock_desktop = QPixmap(600, 400)
+        mock_desktop.fill(QColor(80, 120, 160))
+        canvas._desktop_pixmap = mock_desktop
+        canvas._selection_rect = QRect(20, 20, 150, 100)
+
+        created_files = []
+        canvas.capture_completed.connect(created_files.append)
+
+        with patch("src.ui.dialogs.document_editor_dlg.DocumentEditorDialog.exec") as mock_exec:
+            mock_exec.return_value = 1
+            canvas._save_to_digitalbrainex()
+
+            self.assertEqual(len(created_files), 1)
+            saved_path = created_files[0]
+            self.assertTrue(os.path.exists(saved_path))
+            self.assertTrue(mock_exec.called)
+
+            # Cleanup
+            if os.path.exists(saved_path):
+                os.remove(saved_path)
+
+        canvas.close()
+
+    def test_save_as_file_workflow(self):
+        from unittest.mock import patch
+        import tempfile
+
+        canvas = OverlayCanvas()
+        mock_desktop = QPixmap(800, 600)
+        mock_desktop.fill(QColor(100, 150, 200))
+        canvas._desktop_pixmap = mock_desktop
+        canvas._selection_rect = QRect(50, 50, 200, 150)
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            target_file = os.path.join(tmpdir, "test_file_dialog.png")
+            with patch("PyQt6.QtWidgets.QFileDialog.getSaveFileName", return_value=(target_file, "PNG Image (*.png)")):
+                completed_events = []
+                canvas.capture_completed.connect(completed_events.append)
+
+                canvas._save_as_file()
+
+                self.assertTrue(os.path.exists(target_file))
+                self.assertEqual(len(completed_events), 1)
+                self.assertEqual(completed_events[0], os.path.abspath(target_file))
+
+        canvas.close()
+
+    def test_document_editor_set_document_details(self):
+        from src.ui.dialogs.document_editor_dlg import DocumentEditorDialog
+        dlg = DocumentEditorDialog()
+        dlg.set_document_details(
+            name="Screenshot_Meeting.png",
+            file_path="C:/dummy/Screenshot_Meeting.png",
+            category="Screenshots",
+            desc="Quarterly demo presentation screenshot",
+        )
+
+        self.assertEqual(dlg.edit_name.text(), "Screenshot_Meeting.png")
+        self.assertEqual(dlg.edit_uri.text(), "C:/dummy/Screenshot_Meeting.png")
+        self.assertEqual(dlg.combo_cat.currentText(), "Screenshots")
+        self.assertIn("Quarterly demo presentation", dlg.edit_desc.toPlainText())
+        dlg.close()
+
 
 if __name__ == "__main__":
     unittest.main()
+

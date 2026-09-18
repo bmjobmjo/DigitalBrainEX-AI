@@ -174,6 +174,36 @@ class DocumentEditorDialog(QDialog):
                         self.combo_proj.setCurrentIndex(i)
                         break
 
+    def set_document_details(
+        self,
+        name: str,
+        file_path: str,
+        category: str = "Screenshots",
+        desc: str = "",
+        project_id: Optional[int] = None,
+    ):
+        """Prefills document editor fields for newly captured files (e.g. screenshots)."""
+        if name:
+            self.edit_name.setText(name)
+        if file_path:
+            self.edit_uri.setText(file_path)
+        if desc:
+            self.edit_desc.setPlainText(desc)
+
+        if category:
+            idx = self.combo_cat.findText(category)
+            if idx >= 0:
+                self.combo_cat.setCurrentIndex(idx)
+            else:
+                self.combo_cat.setEditText(category)
+
+        target_proj = project_id if project_id is not None else self.default_project_id
+        if target_proj != 0:
+            for i in range(self.combo_proj.count()):
+                if self.combo_proj.itemData(i) == target_proj:
+                    self.combo_proj.setCurrentIndex(i)
+                    break
+
     def _save_document(self):
         name = self.edit_name.text().strip()
         if not name:

@@ -131,7 +131,7 @@ class LocalEmbeddingManager:
     @staticmethod
     def cosine_similarity(vec1: np.ndarray, vec2: np.ndarray) -> float:
         """Computes cosine similarity between two normalized vectors."""
-        if vec1.size == 0 or vec2.size == 0:
+        if vec1.size == 0 or vec2.size == 0 or vec1.shape != vec2.shape:
             return 0.0
         # If already unit length, dot product is cosine similarity
         norm1 = np.linalg.norm(vec1)
