@@ -20,9 +20,11 @@ from PyQt6.QtWidgets import (
     QComboBox,
     QMessageBox,
     QFileDialog,
+    QMenu,
+    QApplication,
 )
-from PyQt6.QtCore import Qt, pyqtSignal
-from PyQt6.QtGui import QPixmap
+from PyQt6.QtCore import Qt, pyqtSignal, QUrl, QMimeData
+from PyQt6.QtGui import QPixmap, QAction
 from src.config import TEMP_PAD_DIR, SCREENSHOTS_DIR
 from src.core.repository import DataRepository
 from src.ui.icons import IconHelper
@@ -38,6 +40,7 @@ class FileManagerView(QWidget):
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         self._current_file_path = None
         self._files = []
+        self._dismissed_paths = set()
         self._init_ui()
         self.load_data()
 
@@ -67,8 +70,8 @@ class FileManagerView(QWidget):
 
         main_layout.addLayout(header_layout)
 
-        # Splitter: File List (50%), Preview & Ingestion (50%)
-        splitter = QSplitter(Qt.Orientation.Horizontal)
+        # Splitter: File List (left), Preview & Ingestion (right)
+        self.splitter = QSplitter(Qt.Orientation.Horizontal)
 
         table_container = QWidget()
         table_container.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
@@ -84,24 +87,46 @@ class FileManagerView(QWidget):
         self.table.setColumnWidth(2, 140)
         self.table.setColumnWidth(3, 120)
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
-        self.table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
+        self.table.setSelectionMode(QTableWidget.SelectionMode.ExtendedSelection)
         self.table.setAlternatingRowColors(True)
         self.table.setShowGrid(True)
         self.table.verticalHeader().setVisible(True)
         self.table.verticalHeader().setDefaultSectionSize(26)
         self.table.itemSelectionChanged.connect(self._on_table_row_selected)
+        self.table.itemDoubleClicked.connect(self._on_table_double_clicked)
+        self.table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.table.customContextMenuRequested.connect(self._show_context_menu)
         table_layout.addWidget(self.table)
-        splitter.addWidget(table_container)
+        self.splitter.addWidget(table_container)
 
         # Preview & Convert Panel
-        preview_container = QWidget()
-        preview_layout = QVBoxLayout(preview_container)
+        self.preview_container = QWidget()
+        preview_layout = QVBoxLayout(self.preview_container)
         preview_layout.setContentsMargins(12, 0, 0, 0)
         preview_layout.setSpacing(10)
 
+        # Header for preview panel with close button
+        preview_header_layout = QHBoxLayout()
+        preview_header_layout.setContentsMargins(0, 0, 0, 0)
+        preview_header_layout.setSpacing(8)
+
         preview_title = QLabel("File Preview & Project Ingestion")
         preview_title.setStyleSheet("font-size: 14px; font-weight: bold;")
-        preview_layout.addWidget(preview_title)
+        preview_header_layout.addWidget(preview_title)
+
+        preview_header_layout.addStretch()
+
+        self.btn_close_preview = QPushButton("✕")
+        self.btn_close_preview.setToolTip("Close Preview Pane")
+        self.btn_close_preview.setFixedSize(26, 26)
+        self.btn_close_preview.setStyleSheet(
+            "QPushButton { font-weight: bold; border-radius: 4px; border: 1px solid #cbd5e1; background: #f8fafc; color: #475569; }"
+            "QPushButton:hover { background: #fee2e2; color: #dc2626; border-color: #fca5a5; }"
+        )
+        self.btn_close_preview.clicked.connect(self._close_preview_pane)
+        preview_header_layout.addWidget(self.btn_close_preview)
+
+        preview_layout.addLayout(preview_header_layout)
 
         self.lbl_selected_file = QLabel("Select a file to preview")
         self.lbl_selected_file.setStyleSheet("color: #64748b; font-weight: 500;")
@@ -160,9 +185,22 @@ class FileManagerView(QWidget):
         convert_layout.addLayout(action_layout)
         preview_layout.addWidget(convert_box)
 
-        splitter.addWidget(preview_container)
-        splitter.setSizes([500, 500])
-        main_layout.addWidget(splitter)
+        self.splitter.addWidget(self.preview_container)
+        # By default, hide the preview/details pane
+        self.preview_container.hide()
+        self.splitter.setSizes([1000, 0])
+        main_layout.addWidget(self.splitter)
+
+    def _close_preview_pane(self):
+        """Hides the preview container and restores full width to file table."""
+        self.preview_container.hide()
+        self.splitter.setSizes([1000, 0])
+
+    def _show_preview_pane(self):
+        """Shows the preview container if it was hidden."""
+        if self.preview_container.isHidden():
+            self.preview_container.show()
+            self.splitter.setSizes([600, 400])
 
     def _populate_projects(self):
         self.combo_proj.clear()
@@ -207,6 +245,10 @@ class FileManagerView(QWidget):
             try:
                 for entry in os.scandir(sdir):
                     if entry.is_file():
+                        # Exclude dismissed files
+                        norm_path = os.path.normpath(entry.path)
+                        if norm_path in self._dismissed_paths:
+                            continue
                         stat = entry.stat()
                         mod_time = datetime.fromtimestamp(stat.st_mtime).strftime("%Y-%m-%d %H:%M")
                         size_kb = f"{stat.st_size / 1024:.1f} KB"
@@ -242,18 +284,55 @@ class FileManagerView(QWidget):
             self.table.setUpdatesEnabled(True)
             self.table.blockSignals(False)
 
-    def _on_table_row_selected(self):
-        selected_rows = self.table.selectedItems()
-        if not selected_rows:
+    def _get_selected_file_paths(self):
+        """Returns a list of distinct file paths for all currently selected rows."""
+        selected_indexes = self.table.selectionModel().selectedRows()
+        paths = []
+        for idx in selected_indexes:
+            item = self.table.item(idx.row(), 0)
+            if item:
+                path = item.data(Qt.ItemDataRole.UserRole)
+                if path and path not in paths:
+                    paths.append(path)
+        return paths
+
+    def _on_table_double_clicked(self, item):
+        """Double clicking a row immediately opens the file in its default application."""
+        if not item:
             return
-        row = self.table.currentRow()
+        row = item.row()
         name_item = self.table.item(row, 0)
         if not name_item:
             return
-
         file_path = name_item.data(Qt.ItemDataRole.UserRole)
+        if file_path and os.path.exists(file_path):
+            try:
+                os.startfile(file_path)
+            except Exception as e:
+                QMessageBox.warning(self, "Open Error", f"Could not open file:\n{e}")
+
+    def _on_table_row_selected(self):
+        selected_paths = self._get_selected_file_paths()
+        if not selected_paths:
+            return
+
+        # Reveal the preview panel when a file is clicked/selected
+        self._show_preview_pane()
+
+        # Update preview using the primary / first selected file
+        file_path = selected_paths[0]
         self._current_file_path = file_path
-        self.lbl_selected_file.setText(os.path.basename(file_path))
+
+        if len(selected_paths) > 1:
+            self.lbl_selected_file.setText(f"{os.path.basename(file_path)} (+ {len(selected_paths) - 1} more selected)")
+        else:
+            self.lbl_selected_file.setText(os.path.basename(file_path))
+
+        if not os.path.exists(file_path):
+            self.preview_image.setText("File does not exist")
+            self.preview_image.show()
+            self.preview_text.hide()
+            return
 
         ext = os.path.splitext(file_path)[1].lower()
         if ext in (".png", ".jpg", ".jpeg", ".bmp", ".gif", ".webp"):
@@ -265,6 +344,8 @@ class FileManagerView(QWidget):
                 self.preview_text.hide()
             else:
                 self.preview_image.setText("Cannot render image preview")
+                self.preview_image.show()
+                self.preview_text.hide()
         elif ext in (".txt", ".log", ".md", ".json", ".py", ".cs", ".sql", ".csv"):
             try:
                 with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
@@ -277,24 +358,86 @@ class FileManagerView(QWidget):
                 self.preview_image.show()
                 self.preview_text.hide()
         else:
-            self.preview_image.setText(f"Preview not available for {ext} file\nClick 'Open in App' to view.")
+            self.preview_image.setText(f"Preview not available for {ext} file\nDouble-click or click 'Open in App' to view.")
             self.preview_image.show()
             self.preview_text.hide()
 
+    def _show_context_menu(self, pos):
+        """Displays right-click context menu for selected file(s)."""
+        selected_paths = self._get_selected_file_paths()
+        if not selected_paths:
+            # Check if right-click was on a specific row
+            item = self.table.itemAt(pos)
+            if item:
+                self.table.selectRow(item.row())
+                selected_paths = self._get_selected_file_paths()
+            else:
+                return
+
+        menu = QMenu(self)
+
+        # Open action
+        action_open = menu.addAction(IconHelper.get_icon("open", 16), "Open")
+        action_open.triggered.connect(self._open_file_in_os)
+
+        menu.addSeparator()
+
+        # Copy Path
+        action_copy_path = menu.addAction(IconHelper.get_icon("copy", 16), "Copy Path")
+        action_copy_path.triggered.connect(self._copy_selected_paths)
+
+        # Copy File (to OS clipboard)
+        action_copy_file = menu.addAction(IconHelper.get_icon("file_manager", 16), "Copy File")
+        action_copy_file.triggered.connect(self._copy_selected_files_to_clipboard)
+
+        menu.addSeparator()
+
+        # Delete action
+        action_delete = menu.addAction(IconHelper.get_icon("delete", 16), f"Delete ({len(selected_paths)} item{'s' if len(selected_paths) > 1 else ''})")
+        action_delete.triggered.connect(self._delete_file)
+
+        if len(selected_paths) == 1:
+            menu.addSeparator()
+            action_convert = menu.addAction(IconHelper.get_icon("save", 16), "Save to Documents")
+            action_convert.triggered.connect(self._convert_to_document)
+
+        menu.exec(self.table.viewport().mapToGlobal(pos))
+
+    def _copy_selected_paths(self):
+        """Copies full paths of selected files to clipboard."""
+        selected_paths = self._get_selected_file_paths()
+        if not selected_paths:
+            return
+        text = "\n".join(selected_paths)
+        QApplication.clipboard().setText(text)
+
+    def _copy_selected_files_to_clipboard(self):
+        """Copies selected files to the system clipboard so they can be pasted in Windows Explorer."""
+        selected_paths = self._get_selected_file_paths()
+        if not selected_paths:
+            return
+        mime = QMimeData()
+        urls = [QUrl.fromLocalFile(p) for p in selected_paths if os.path.exists(p)]
+        if urls:
+            mime.setUrls(urls)
+            QApplication.clipboard().setMimeData(mime)
+
     def _convert_to_document(self):
-        if not self._current_file_path or not os.path.exists(self._current_file_path):
-            QMessageBox.warning(self, "Select File", "Please select a file to save.")
+        selected_paths = self._get_selected_file_paths()
+        target_path = selected_paths[0] if selected_paths else self._current_file_path
+        if not target_path or not os.path.exists(target_path):
+            QMessageBox.warning(self, "Select File", "Please select a valid file to save.")
             return
 
         proj_id = self.combo_proj.currentData() or 0
         proj_name = self.combo_proj.currentText()
         cat = self.combo_cat.currentText() or "General"
-        fname = os.path.basename(self._current_file_path)
+        fname = os.path.basename(target_path)
 
-        new_doc = DataRepository.create_document(
+        DataRepository.create_document(
             name=fname,
-            uri=self._current_file_path,
-            desc=f"Imported from {os.path.dirname(self._current_file_path)}",
+            uri=target_path,
+            desc=f"Imported from {os.path.dirname(target_path)}",
             project_id=proj_id,
             project_name=proj_name,
             category=cat,
@@ -304,24 +447,86 @@ class FileManagerView(QWidget):
         self.file_converted.emit()
 
     def _open_file_in_os(self):
-        if self._current_file_path and os.path.exists(self._current_file_path):
-            os.startfile(self._current_file_path)
+        selected_paths = self._get_selected_file_paths()
+        if not selected_paths and self._current_file_path:
+            selected_paths = [self._current_file_path]
+
+        for p in selected_paths:
+            if os.path.exists(p):
+                try:
+                    os.startfile(p)
+                except Exception as e:
+                    logger.error(f"Error opening file {p}: {e}")
 
     def _open_temppad_folder(self):
         os.startfile(str(TEMP_PAD_DIR))
 
     def _delete_file(self):
-        if not self._current_file_path or not os.path.exists(self._current_file_path):
+        """
+        Batched delete handler for single or multiple selected files.
+        Asks only once with clear options:
+        - Remove from File Manager only (keeps file on disk)
+        - Delete permanently from Local Folder/Disk
+        - Cancel
+        """
+        selected_paths = self._get_selected_file_paths()
+        if not selected_paths and self._current_file_path:
+            selected_paths = [self._current_file_path]
+
+        if not selected_paths:
+            QMessageBox.warning(self, "No Selection", "Please select file(s) to delete.")
             return
-        confirm = QMessageBox.question(
-            self,
-            "Confirm Delete",
-            f"Are you sure you want to permanently delete:\n{os.path.basename(self._current_file_path)}?",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-        )
-        if confirm == QMessageBox.StandardButton.Yes:
-            try:
-                os.remove(self._current_file_path)
-                self.load_data()
-            except Exception as e:
-                QMessageBox.critical(self, "Error", f"Failed to delete file: {e}")
+
+        count = len(selected_paths)
+        if count == 1:
+            fname = os.path.basename(selected_paths[0])
+            msg_text = f"You have selected 1 file:\n'{fname}'\n\nHow would you like to delete it?"
+        else:
+            sample_names = ", ".join(f"'{os.path.basename(p)}'" for p in selected_paths[:3])
+            if count > 3:
+                sample_names += f" and {count - 3} more"
+            msg_text = f"You have selected {count} files ({sample_names}).\n\nHow would you like to delete them?"
+
+        msg_box = QMessageBox(self)
+        msg_box.setWindowTitle("Delete Options")
+        msg_box.setText(msg_text)
+        msg_box.setIcon(QMessageBox.Icon.Question)
+
+        btn_remove_only = msg_box.addButton("Remove from File Manager", QMessageBox.ButtonRole.ActionRole)
+        btn_delete_disk = msg_box.addButton("Delete from Disk", QMessageBox.ButtonRole.DestructiveRole)
+        btn_cancel = msg_box.addButton("Cancel", QMessageBox.ButtonRole.RejectRole)
+        msg_box.setDefaultButton(btn_cancel)
+
+        msg_box.exec()
+        clicked_button = msg_box.clickedButton()
+
+        if clicked_button == btn_cancel or clicked_button is None:
+            return
+
+        if clicked_button == btn_remove_only:
+            # Dismiss from file manager view without removing from disk
+            for p in selected_paths:
+                self._dismissed_paths.add(os.path.normpath(p))
+            self.load_data()
+            if self._current_file_path in selected_paths:
+                self._current_file_path = None
+                self._close_preview_pane()
+
+        elif clicked_button == btn_delete_disk:
+            # Permanently delete from disk
+            failed = []
+            for p in selected_paths:
+                if os.path.exists(p):
+                    try:
+                        os.remove(p)
+                    except Exception as e:
+                        failed.append((os.path.basename(p), str(e)))
+            self.load_data()
+            if self._current_file_path in selected_paths:
+                self._current_file_path = None
+                self._close_preview_pane()
+
+            if failed:
+                err_details = "\n".join(f"- {name}: {err}" for name, err in failed)
+                QMessageBox.critical(self, "Delete Errors", f"Failed to delete {len(failed)} file(s):\n{err_details}")
+
