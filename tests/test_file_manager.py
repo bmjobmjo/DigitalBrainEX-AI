@@ -1,4 +1,4 @@
-﻿import os
+import os
 import tempfile
 import pytest
 from PyQt6.QtWidgets import QApplication, QMessageBox, QTableWidget, QTableWidgetItem
@@ -80,14 +80,22 @@ def test_file_manager_clipboard_actions(temp_files, monkeypatch):
     assert len(selected) == 2
 
     view._copy_selected_paths()
+    app.processEvents()
     clipboard_text = QApplication.clipboard().text()
     assert temp_files[0] in clipboard_text
     assert temp_files[1] in clipboard_text
 
+    captured = {}
+    orig_set_mime = QApplication.clipboard().setMimeData
+    def mock_set_mime(m):
+        captured["has_urls"] = m.hasUrls()
+        captured["urls"] = [u.toLocalFile() for u in m.urls()]
+        orig_set_mime(m)
+    monkeypatch.setattr(QApplication.clipboard(), "setMimeData", mock_set_mime)
+
     view._copy_selected_files_to_clipboard()
-    mime = QApplication.clipboard().mimeData()
-    assert mime.hasUrls()
-    norm_urls = [os.path.normpath(u.toLocalFile()) for u in mime.urls()]
+    assert captured.get("has_urls") is True
+    norm_urls = [os.path.normpath(u) for u in captured.get("urls", [])]
     assert os.path.normpath(temp_files[0]) in norm_urls
     assert os.path.normpath(temp_files[1]) in norm_urls
 
@@ -187,3 +195,74 @@ def test_file_manager_double_click(temp_files, monkeypatch):
 
     assert len(opened) == 1
     assert opened[0] == temp_files[0]
+
+
+def test_file_manager_excludes_clipboard_images_and_screenshots(monkeypatch):
+    """Verify that clipboard images, screenshots, and temp lock files are strictly excluded from File Manager."""
+    with tempfile.TemporaryDirectory() as temp_watch_dir:
+        # Create various files in the watch folder
+        valid_doc = os.path.join(temp_watch_dir, "QuarterlyReport.pdf")
+        clip_img = os.path.join(temp_watch_dir, "ClipImage_20260922_101010.png")
+        screen_img = os.path.join(temp_watch_dir, "Screenshot_20260922_101010.png")
+        lock_file = os.path.join(temp_watch_dir, "~$DraftReport.docx")
+        temp_dl = os.path.join(temp_watch_dir, "bigfile.crdownload")
+
+        for p in [valid_doc, clip_img, screen_img, lock_file, temp_dl]:
+            with open(p, "w") as f:
+                f.write("test data")
+
+        # Mock watch folders to return this folder
+        monkeypatch.setattr(
+            "src.ui.views.file_manager_view.DataRepository.get_watch_folders",
+            lambda: [temp_watch_dir],
+        )
+
+        view = FileManagerView()
+        app.processEvents()
+
+        file_names = [f["name"] for f in view._files]
+        assert "QuarterlyReport.pdf" in file_names
+        assert "ClipImage_20260922_101010.png" not in file_names
+        assert "Screenshot_20260922_101010.png" not in file_names
+        assert "~$DraftReport.docx" not in file_names
+        assert "bigfile.crdownload" not in file_names
+
+        # Find row with QuarterlyReport.pdf
+        found = False
+        for r in range(view.table.rowCount()):
+            if view.table.item(r, 0).text() == "QuarterlyReport.pdf":
+                assert view.table.item(r, 3).text() == "WatchFolder"
+                found = True
+        assert found, "QuarterlyReport.pdf was not found in File Manager table"
+
+
+def test_file_manager_watch_folder_event_bus(monkeypatch):
+    """Verify that EVT_WATCH_FOLDER_FILE automatically triggers File Manager data reload."""
+    from src.core.event_bus import event_bus, EVT_WATCH_FOLDER_FILE
+
+    with tempfile.TemporaryDirectory() as temp_watch_dir:
+        doc1 = os.path.join(temp_watch_dir, "Initial.pdf")
+        with open(doc1, "w") as f:
+            f.write("initial")
+
+        monkeypatch.setattr(
+            "src.ui.views.file_manager_view.DataRepository.get_watch_folders",
+            lambda: [temp_watch_dir],
+        )
+
+        view = FileManagerView()
+        app.processEvents()
+        assert any(f["name"] == "Initial.pdf" for f in view._files)
+
+        # Now simulate a new file arriving in the watch folder
+        doc2 = os.path.join(temp_watch_dir, "ArrivedLater.pdf")
+        with open(doc2, "w") as f:
+            f.write("arrived later")
+
+        event_bus.publish(EVT_WATCH_FOLDER_FILE, file_path=doc2)
+        app.processEvents()
+
+        # Check that ArrivedLater.pdf now appears in File Manager
+        file_names = [f["name"] for f in view._files]
+        assert "ArrivedLater.pdf" in file_names
+        view.close()

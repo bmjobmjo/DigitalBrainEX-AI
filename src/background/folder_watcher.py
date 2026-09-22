@@ -22,13 +22,32 @@ class WatchFolderHandler(FileSystemEventHandler):
         super().__init__()
         self.callback = callback
 
+    def _should_ignore(self, path: str) -> bool:
+        filename = os.path.basename(path)
+        # Skip temporary Office lock files (e.g. ~$Doc.docx) and hidden files
+        if filename.startswith("~") or filename.startswith("."):
+            return True
+        # Skip partial/temporary download files
+        ext = os.path.splitext(path)[1].lower()
+        if ext in (".tmp", ".crdownload", ".part"):
+            return True
+        # Skip clipboard images and screenshots if watch folder points to screenshot dir
+        if filename.startswith("ClipImage_") or filename.startswith("Screenshot_"):
+            return True
+        return False
+
     def on_created(self, event):
         if not event.is_directory:
-            # Let file settle (avoid reading partial downloads like .crdownload)
-            ext = os.path.splitext(event.src_path)[1].lower()
-            if ext in (".tmp", ".crdownload", ".part"):
+            if self._should_ignore(event.src_path):
                 return
             self.callback(event.src_path)
+
+    def on_moved(self, event):
+        if not event.is_directory:
+            # Handles files renamed upon download completion (e.g. .crdownload -> .pdf)
+            dest = getattr(event, "dest_path", None)
+            if dest and not self._should_ignore(dest):
+                self.callback(dest)
 
 
 class FolderWatcher(QObject):

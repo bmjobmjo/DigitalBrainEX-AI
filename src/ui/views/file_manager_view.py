@@ -25,14 +25,16 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import Qt, pyqtSignal, QUrl, QMimeData
 from PyQt6.QtGui import QPixmap, QAction
-from src.config import TEMP_PAD_DIR, SCREENSHOTS_DIR
+from src.config import TEMP_PAD_DIR
 from src.core.repository import DataRepository
+from src.core.event_bus import event_bus, EVT_WATCH_FOLDER_FILE
 from src.ui.icons import IconHelper
 from src.core.logger import logger
 
 
 class FileManagerView(QWidget):
     file_converted = pyqtSignal()
+    watch_folder_file_arrived = pyqtSignal(str)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -43,6 +45,10 @@ class FileManagerView(QWidget):
         self._dismissed_paths = set()
         self._init_ui()
         self.load_data()
+
+        # Listen for newly arrived files in watch folders
+        self.watch_folder_file_arrived.connect(self._on_watch_folder_file_arrived)
+        event_bus.subscribe(EVT_WATCH_FOLDER_FILE, self._on_watch_folder_event)
 
     def _init_ui(self):
         main_layout = QVBoxLayout(self)
@@ -224,16 +230,15 @@ class FileManagerView(QWidget):
             logger.error(f"Error populating file manager categories: {e}")
 
     def load_data(self):
-        """Scans TempPad folder and Screenshots folder for files."""
+        """Scans TempPad folder and database WatchFolders for files."""
         self.table.setRowCount(0)
         self._files = []
 
         scan_dirs = [
             (TEMP_PAD_DIR, "TempPad"),
-            (SCREENSHOTS_DIR, "Screenshots"),
         ]
 
-        # Also scan database WatchFolders
+        # Scan database WatchFolders
         watch_folders = DataRepository.get_watch_folders()
         for wf in watch_folders:
             if os.path.exists(wf):
@@ -245,6 +250,18 @@ class FileManagerView(QWidget):
             try:
                 for entry in os.scandir(sdir):
                     if entry.is_file():
+                        name = entry.name
+                        # Skip office lock files (e.g. ~$Doc.docx) and hidden files
+                        if name.startswith("~") or name.startswith("."):
+                            continue
+                        # Never display clipboard images or screenshots in File Manager
+                        if name.startswith("ClipImage_") or name.startswith("Screenshot_"):
+                            continue
+                        # Skip temporary download artifacts
+                        ext = os.path.splitext(name)[1].lower()
+                        if ext in (".tmp", ".crdownload", ".part"):
+                            continue
+
                         # Exclude dismissed files
                         norm_path = os.path.normpath(entry.path)
                         if norm_path in self._dismissed_paths:
@@ -417,9 +434,11 @@ class FileManagerView(QWidget):
         if not selected_paths:
             return
         mime = QMimeData()
-        urls = [QUrl.fromLocalFile(p) for p in selected_paths if os.path.exists(p)]
+        valid_paths = [p for p in selected_paths if os.path.exists(p)]
+        urls = [QUrl.fromLocalFile(p) for p in valid_paths]
         if urls:
             mime.setUrls(urls)
+            mime.setText("\n".join(valid_paths))
             QApplication.clipboard().setMimeData(mime)
 
     def _convert_to_document(self):
@@ -529,4 +548,17 @@ class FileManagerView(QWidget):
             if failed:
                 err_details = "\n".join(f"- {name}: {err}" for name, err in failed)
                 QMessageBox.critical(self, "Delete Errors", f"Failed to delete {len(failed)} file(s):\n{err_details}")
+
+    def _on_watch_folder_event(self, file_path=None, **kwargs):
+        """Thread-safe forwarder: Called when FolderWatcher emits EVT_WATCH_FOLDER_FILE."""
+        self.watch_folder_file_arrived.emit(str(file_path or ""))
+
+    def _on_watch_folder_file_arrived(self, file_path: str):
+        """Runs on Qt main thread to immediately show newly arrived watch folder files."""
+        logger.info(f"FileManagerView: Watch folder file arrived: {file_path}")
+        self.load_data()
+
+    def closeEvent(self, event):
+        event_bus.unsubscribe(EVT_WATCH_FOLDER_FILE, self._on_watch_folder_event)
+        super().closeEvent(event)
 
