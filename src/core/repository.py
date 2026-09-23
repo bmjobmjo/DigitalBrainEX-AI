@@ -227,9 +227,11 @@ class DataRepository:
         project_id: Optional[int] = None,
         search: Optional[str] = None,
     ) -> List[Document]:
-        """Queries documents for personal diary notes (Category == 'PlainNotes')."""
+        """Queries documents for personal diary notes (Category == 'PlainNotes' or Type == 2)."""
         with get_db_session() as session:
-            query = session.query(Document).filter(Document.Category == "PlainNotes")
+            query = session.query(Document).filter(
+                (Document.Category == "PlainNotes") | (Document.Type == 2)
+            )
             if project_id and project_id != 0:
                 query = query.filter(Document.PojectID == project_id)
             if search:

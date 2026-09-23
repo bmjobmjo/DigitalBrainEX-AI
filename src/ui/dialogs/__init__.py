@@ -2,6 +2,7 @@
 Modal Editor and Creation Dialogs for DigitalBrainEX AI.
 """
 from src.ui.dialogs.note_editor_dlg import NoteEditorDialog
+from src.ui.dialogs.save_note_dlg import SaveNoteMetadataDialog
 from src.ui.dialogs.task_editor_dlg import TaskEditorDialog
 from src.ui.dialogs.project_editor_dlg import ProjectEditorDialog
 from src.ui.dialogs.document_editor_dlg import DocumentEditorDialog
@@ -13,6 +14,7 @@ from src.ui.dialogs.embedding_progress_dialog import EmbeddingProgressDialog
 
 __all__ = [
     "NoteEditorDialog",
+    "SaveNoteMetadataDialog",
     "TaskEditorDialog",
     "ProjectEditorDialog",
     "DocumentEditorDialog",
